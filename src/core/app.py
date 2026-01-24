@@ -31,6 +31,7 @@ if __name__ == "__main__":
     )
     from src.core.agent import FeaturePromptWriterAgent
     from src.core.database import FeatureStore, PromptTemplateStore, RunStore
+    from src.core.code_metrics import generate_code_metrics_sample, get_code_metrics_for_category
 else:
     from .schemas import (
         FeatureMetadata,
@@ -48,6 +49,7 @@ else:
     )
     from .agent import FeaturePromptWriterAgent
     from .database import FeatureStore, PromptTemplateStore, RunStore
+    from .code_metrics import generate_code_metrics_sample, get_code_metrics_for_category
 
 
 # Initialize stores
@@ -146,6 +148,137 @@ GROUPED_FEATURES: Dict[str, Dict[str, dict]] = {
             "safety_critical": False,
         },
     },
+    # ─────────────────────────────────────────────────────────────────
+    # Apple Intelligence - Image Features
+    # ─────────────────────────────────────────────────────────────────
+    "Image Understanding": {
+        "Visual Look Up": {
+            "description": "Identify objects, plants, pets, landmarks, and artwork in photos. Provide relevant information about the identified subject.",
+            "category": "classification",
+            "input_format": "image",
+            "output_format": "json",
+            "typical_input": "Photo of a Golden Gate Bridge at sunset",
+            "expected_output": '{"subject": "Golden Gate Bridge", "category": "landmark", "location": "San Francisco, CA", "info": "Suspension bridge spanning the Golden Gate strait, completed in 1937"}',
+            "privacy_sensitive": False,
+            "safety_critical": False,
+        },
+        "Image Captioning": {
+            "description": "Generate natural language descriptions of images for accessibility (VoiceOver) and search indexing.",
+            "category": "generation",
+            "input_format": "image",
+            "output_format": "text",
+            "typical_input": "Photo of a family having a picnic in a park",
+            "expected_output": "A family of four sitting on a red checkered blanket in a sunny park, with a picnic basket and sandwiches spread out before them. Two children are playing with a golden retriever.",
+            "privacy_sensitive": True,
+            "safety_critical": True,
+        },
+        "Live Text (OCR)": {
+            "description": "Extract and recognize text from images, screenshots, and camera feed. Make text selectable, searchable, and translatable.",
+            "category": "extraction",
+            "input_format": "image",
+            "output_format": "json",
+            "typical_input": "Photo of a restaurant menu or business card",
+            "expected_output": '{"text_blocks": [{"text": "Joe\'s Coffee Shop", "bounds": [10, 20, 200, 50]}, {"text": "555-123-4567", "bounds": [10, 60, 150, 80], "type": "phone"}], "language": "en"}',
+            "privacy_sensitive": True,
+            "safety_critical": False,
+        },
+        "Photo Search": {
+            "description": "Enable natural language search across photo library. Find photos by describing content, people, places, events, or objects.",
+            "category": "extraction",
+            "input_format": "text",
+            "output_format": "json",
+            "typical_input": "Find photos of my dog at the beach from last summer",
+            "expected_output": '{"query_understanding": {"subject": "dog", "location": "beach", "time_range": "summer 2025"}, "search_filters": {"has_pet": true, "scene_type": "beach", "date_range": ["2025-06-01", "2025-08-31"]}}',
+            "privacy_sensitive": True,
+            "safety_critical": False,
+        },
+    },
+    "Image Generation": {
+        "Image Playground": {
+            "description": "Generate images from text descriptions in various styles (animation, illustration, sketch). Create personalized images featuring people from photo library.",
+            "category": "generation",
+            "input_format": "text",
+            "output_format": "image",
+            "typical_input": "A cat astronaut floating in space with Earth in the background, illustration style",
+            "expected_output": "Generated illustration of a cartoon cat in a spacesuit floating among stars with a blue Earth visible below",
+            "privacy_sensitive": True,
+            "safety_critical": True,
+        },
+        "Genmoji": {
+            "description": "Create custom emoji from text descriptions. Generate personalized emoji that match user's intent and can feature people from photos.",
+            "category": "generation",
+            "input_format": "text",
+            "output_format": "image",
+            "typical_input": "A happy T-Rex wearing a party hat",
+            "expected_output": "Custom emoji-style image of a smiling green T-Rex dinosaur with a colorful striped party hat",
+            "privacy_sensitive": False,
+            "safety_critical": True,
+        },
+        "Memory Movie": {
+            "description": "Automatically create narrative photo/video montages from library. Select relevant media, arrange chronologically, add music and transitions based on theme.",
+            "category": "generation",
+            "input_format": "text",
+            "output_format": "json",
+            "typical_input": "Create a memory movie of my trip to Japan",
+            "expected_output": '{"title": "Japan Adventures", "duration": "2:30", "clips": [{"type": "photo", "id": "img_001", "duration": 3}, {"type": "video", "id": "vid_002", "start": 0, "end": 5}], "music": {"mood": "uplifting", "tempo": "medium"}, "transitions": ["fade", "slide"]}',
+            "privacy_sensitive": True,
+            "safety_critical": False,
+        },
+    },
+    "Image Editing": {
+        "Clean Up (Object Removal)": {
+            "description": "Identify and remove unwanted objects, people, or distractions from photos using generative AI inpainting.",
+            "category": "generation",
+            "input_format": "image",
+            "output_format": "image",
+            "typical_input": "Photo of a beach with a trash can that needs to be removed",
+            "expected_output": "Same beach photo with the trash can seamlessly removed and the background naturally filled in",
+            "privacy_sensitive": False,
+            "safety_critical": True,
+        },
+        "Subject Lift (Background Removal)": {
+            "description": "Automatically detect and separate the main subject from the background. Enable drag-and-drop of subjects into other apps.",
+            "category": "extraction",
+            "input_format": "image",
+            "output_format": "image",
+            "typical_input": "Photo of a dog sitting on grass",
+            "expected_output": "PNG image of the dog with transparent background, cleanly separated from the grass",
+            "privacy_sensitive": False,
+            "safety_critical": False,
+        },
+        "Portrait Mode Enhancement": {
+            "description": "Apply depth-based blur effects to photos. Adjust aperture, lighting, and focus point post-capture.",
+            "category": "generation",
+            "input_format": "image",
+            "output_format": "image",
+            "typical_input": "Portrait photo with flat background",
+            "expected_output": "Same portrait with natural bokeh effect, subject in sharp focus, background artistically blurred",
+            "privacy_sensitive": False,
+            "safety_critical": False,
+        },
+    },
+    "Image Safety": {
+        "Sensitive Content Warning": {
+            "description": "Detect and blur sensitive or explicit content in images before display. Provide content warnings with option to view.",
+            "category": "classification",
+            "input_format": "image",
+            "output_format": "json",
+            "typical_input": "Incoming image in Messages app",
+            "expected_output": '{"is_sensitive": true, "categories": ["nudity"], "confidence": 0.95, "action": "blur", "warning_message": "This image may contain sensitive content"}',
+            "privacy_sensitive": True,
+            "safety_critical": True,
+        },
+        "Face Detection & Privacy": {
+            "description": "Detect faces in images for privacy protection, photo organization, and People album features.",
+            "category": "extraction",
+            "input_format": "image",
+            "output_format": "json",
+            "typical_input": "Group photo at a party",
+            "expected_output": '{"faces": [{"bounds": [100, 50, 150, 120], "person_id": "person_1", "confidence": 0.98}, {"bounds": [250, 60, 300, 130], "person_id": null, "confidence": 0.91}], "face_count": 2}',
+            "privacy_sensitive": True,
+            "safety_critical": True,
+        },
+    },
     "Custom": {}
 }
 
@@ -182,6 +315,42 @@ def get_suggested_metrics(category: str) -> str:
 def get_all_metrics_choices() -> List[str]:
     """Get all available metrics as choices"""
     return list(METRICS_REGISTRY.keys())
+
+
+# Location to language mapping
+LOCATION_TO_LANGUAGE = {
+    "US": "en",
+    "GB": "en",
+    "CN": "zh-Hans",
+    "TW": "zh-Hant",
+    "HK": "zh-Hant",
+    "JP": "ja",
+    "KR": "ko",
+    "DE": "de",
+    "FR": "fr",
+    "ES": "es",
+    "MX": "es",
+    "BR": "pt",
+    "IN": "en",  # India - English is common for tech
+    "SA": "ar",
+    "AE": "ar",
+    "ID": "id",
+    "VN": "vi",
+    "TH": "th",
+    "IT": "it",
+    "NL": "nl",
+    "RU": "ru",
+    "PL": "pl",
+    "TR": "tr",
+    "AU": "en",
+    "CA": "en",  # Canada - default to English
+    "GLOBAL": "en",
+}
+
+
+def get_language_for_location(location: str) -> str:
+    """Get the primary language for a location"""
+    return LOCATION_TO_LANGUAGE.get(location, "en")
 
 
 def format_metric_definitions(metric_ids: List[str], language: str = "en") -> str:
@@ -305,13 +474,13 @@ def generate_prompt(
     language = language or "en"
     
     if not feature_name.strip():
-        return "", "", "", "", "", "❌ Please provide a feature name"
+        return "", "", "", "", "", "", "❌ Please provide a feature name"
     
     if not feature_description.strip():
-        return "", "", "", "", "", "❌ Please provide a feature description"
+        return "", "", "", "", "", "", "❌ Please provide a feature description"
     
     if not selected_metrics:
-        return "", "", "", "", "", "❌ Please select at least one quality metric"
+        return "", "", "", "", "", "", "❌ Please select at least one quality metric"
     
     try:
         # Build quality metrics
@@ -421,17 +590,22 @@ def generate_prompt(
             result={"json_spec": json_spec}
         )
         
+        # Generate code-based metrics sample
+        cat_str = category.lower() if category else "other"
+        code_metrics_sample = generate_code_metrics_sample(cat_str)
+        
         return (
             evaluation_prompt,
             metric_defs,
             suggested_str,
             metrics_used_str,
             json_spec,
+            code_metrics_sample,
             "✅ Evaluation prompt generated successfully!"
         )
         
     except Exception as e:
-        return "", "", "", "", "", f"❌ Error generating prompt: {str(e)}"
+        return "", "", "", "", "", "", f"❌ Error generating prompt: {str(e)}"
 
 
 def update_metrics_on_category_change(category: str) -> List[str]:
@@ -457,10 +631,10 @@ def create_app() -> gr.Blocks:
         """)
         
         with gr.Tabs():
-            # Tab 0: Quick Start with Templates
-            with gr.Tab("⚡ Quick Start"):
-                gr.Markdown("### Select from Predefined Feature Templates")
-                gr.Markdown("Choose a feature group and template to quickly populate the form, or create your own.")
+            # Tab 0: Feature Definition (merged with Quick Start)
+            with gr.Tab("📝 Feature Definition"):
+                gr.Markdown("### Quick Start: Select from Templates")
+                gr.Markdown("Choose a feature template to auto-fill the form, or enter your own details below.")
                 
                 with gr.Row():
                     group_dd = gr.Dropdown(
@@ -474,15 +648,11 @@ def create_app() -> gr.Blocks:
                         value="Auto-Reply Email"
                     )
                 
-                load_template_btn = gr.Button("📥 Load Template", variant="secondary")
-                template_status = gr.Markdown("")
+                with gr.Row():
+                    load_template_btn = gr.Button("📥 Load Template", variant="secondary")
+                    template_status = gr.Markdown("")
                 
-                gr.Markdown("---")
-                gr.Markdown("### ➕ Add Custom Feature Template")
-                
-                custom_toggle = gr.Checkbox(label="Show custom feature form", value=False)
-                
-                with gr.Group(visible=False) as custom_group:
+                with gr.Accordion("➕ Add Custom Feature Template", open=False):
                     with gr.Row():
                         new_group = gr.Textbox(label="Group Name", placeholder="e.g., Accessibility AI", value="Custom")
                         new_name = gr.Textbox(label="Feature Name", placeholder="e.g., Auto Rewrite Notes")
@@ -492,17 +662,17 @@ def create_app() -> gr.Blocks:
                     with gr.Row():
                         new_category = gr.Dropdown(
                             label="Category",
-                            choices=["summarization", "auto_reply", "translation", "classification", "extraction", "generation", "generic"],
+                            choices=["summarization", "auto_reply", "translation", "classification", "extraction", "generation", "image_generation", "image_editing", "image_understanding", "image_safety", "generic"],
                             value="generic"
                         )
                         new_input_format = gr.Dropdown(
                             label="Input Format",
-                            choices=["text", "json", "markdown", "code", "html", "xml"],
+                            choices=["text", "json", "markdown", "code", "html", "xml", "image", "audio", "video"],
                             value="text"
                         )
                         new_output_format = gr.Dropdown(
                             label="Output Format",
-                            choices=["text", "json", "markdown", "code", "html", "xml"],
+                            choices=["text", "json", "markdown", "code", "html", "xml", "image", "audio", "video"],
                             value="text"
                         )
                     
@@ -516,9 +686,10 @@ def create_app() -> gr.Blocks:
                     
                     add_feature_btn = gr.Button("➕ Add Feature Template", variant="secondary")
                     add_status = gr.Markdown("")
-            
-            # Tab 1: Feature Input
-            with gr.Tab("📝 Feature Definition"):
+                
+                gr.Markdown("---")
+                gr.Markdown("### Feature Details")
+                
                 with gr.Row():
                     with gr.Column(scale=1):
                         feature_name = gr.Textbox(
@@ -537,7 +708,9 @@ def create_app() -> gr.Blocks:
                             label="Feature Category",
                             choices=[
                                 "auto_reply", "summarization", "translation",
-                                "classification", "extraction", "generation", "generic"
+                                "classification", "extraction", "generation",
+                                "image_generation", "image_editing", "image_understanding", "image_safety",
+                                "generic"
                             ],
                             value="generic"
                         )
@@ -545,12 +718,12 @@ def create_app() -> gr.Blocks:
                         with gr.Row():
                             input_format = gr.Dropdown(
                                 label="Input Format",
-                                choices=["text", "json", "markdown", "code", "html", "xml"],
+                                choices=["text", "json", "markdown", "code", "html", "xml", "image", "audio", "video"],
                                 value="text"
                             )
                             output_format = gr.Dropdown(
                                 label="Output Format",
-                                choices=["text", "json", "markdown", "code", "html", "xml"],
+                                choices=["text", "json", "markdown", "code", "html", "xml", "image", "audio", "video"],
                                 value="text"
                             )
                     
@@ -583,17 +756,81 @@ def create_app() -> gr.Blocks:
                     label="Suggested Metrics"
                 )
                 
+                with gr.Row():
+                    select_all_btn = gr.Button("✅ Select All", variant="secondary", size="sm")
+                    unselect_all_btn = gr.Button("⬜ Unselect All", variant="secondary", size="sm")
+                    select_recommended_btn = gr.Button("⭐ Select Recommended", variant="secondary", size="sm")
+                
                 selected_metrics = gr.CheckboxGroup(
                     label="Selected Metrics",
                     choices=get_all_metrics_choices(),
                     value=["relevance", "fluency", "safety"]
                 )
                 
-                language = gr.Dropdown(
-                    label="Evaluation Language",
-                    choices=["en", "zh-Hans", "ja", "es", "fr"],
-                    value="en"
-                )
+                gr.Markdown("---")
+                gr.Markdown("### 🌍 Localization Settings")
+                
+                with gr.Row():
+                    location = gr.Dropdown(
+                        label="Target Location/Region",
+                        choices=[
+                            ("🇺🇸 United States", "US"),
+                            ("🇬🇧 United Kingdom", "GB"),
+                            ("🇨🇳 China (Mainland)", "CN"),
+                            ("🇹🇼 Taiwan", "TW"),
+                            ("🇭🇰 Hong Kong", "HK"),
+                            ("🇯🇵 Japan", "JP"),
+                            ("🇰🇷 South Korea", "KR"),
+                            ("🇩🇪 Germany", "DE"),
+                            ("🇫🇷 France", "FR"),
+                            ("🇪🇸 Spain", "ES"),
+                            ("🇲🇽 Mexico", "MX"),
+                            ("🇧🇷 Brazil", "BR"),
+                            ("🇮🇳 India", "IN"),
+                            ("🇸🇦 Saudi Arabia", "SA"),
+                            ("🇦🇪 United Arab Emirates", "AE"),
+                            ("🇮🇩 Indonesia", "ID"),
+                            ("🇻🇳 Vietnam", "VN"),
+                            ("🇹🇭 Thailand", "TH"),
+                            ("🇮🇹 Italy", "IT"),
+                            ("🇳🇱 Netherlands", "NL"),
+                            ("🇷🇺 Russia", "RU"),
+                            ("🇵🇱 Poland", "PL"),
+                            ("🇹🇷 Turkey", "TR"),
+                            ("🇦🇺 Australia", "AU"),
+                            ("🇨🇦 Canada", "CA"),
+                            ("🌐 Global/International", "GLOBAL"),
+                        ],
+                        value="US",
+                        info="Select the target region for culture-aware evaluation"
+                    )
+                    
+                    language = gr.Dropdown(
+                        label="Evaluation Language",
+                        choices=[
+                            ("English", "en"),
+                            ("Chinese (Simplified)", "zh-Hans"),
+                            ("Chinese (Traditional)", "zh-Hant"),
+                            ("Japanese", "ja"),
+                            ("Korean", "ko"),
+                            ("Spanish", "es"),
+                            ("French", "fr"),
+                            ("German", "de"),
+                            ("Portuguese", "pt"),
+                            ("Italian", "it"),
+                            ("Russian", "ru"),
+                            ("Arabic", "ar"),
+                            ("Hindi", "hi"),
+                            ("Indonesian", "id"),
+                            ("Vietnamese", "vi"),
+                            ("Thai", "th"),
+                            ("Dutch", "nl"),
+                            ("Polish", "pl"),
+                            ("Turkish", "tr"),
+                        ],
+                        value="en",
+                        info="Auto-filled based on location, but you can change it"
+                    )
             
             # Tab 3: RAI Settings
             with gr.Tab("🛡️ Responsible AI"):
@@ -638,23 +875,38 @@ def create_app() -> gr.Blocks:
                 
                 status_message = gr.Markdown("")
                 
-                with gr.Row():
-                    with gr.Column():
-                        output_prompt = gr.Textbox(
-                            label="Generated Evaluation Prompt",
-                            lines=18
-                        )
-                        
-                        with gr.Accordion("📊 Metrics Details", open=False):
-                            metric_defs_output = gr.Markdown(label="Metric Definitions Used")
-                            suggested_metrics_output = gr.Textbox(label="Suggested Additional Metrics", lines=2)
-                            used_metrics_output = gr.Textbox(label="Final Metrics Used", lines=1)
+                with gr.Tabs():
+                    with gr.Tab("📝 Prompt-Based Evaluation"):
+                        with gr.Row():
+                            with gr.Column():
+                                output_prompt = gr.Textbox(
+                                    label="Generated Evaluation Prompt",
+                                    lines=18
+                                )
+                                
+                                with gr.Accordion("📊 Metrics Details", open=False):
+                                    metric_defs_output = gr.Markdown(label="Metric Definitions Used")
+                                    suggested_metrics_output = gr.Textbox(label="Suggested Additional Metrics", lines=2)
+                                    used_metrics_output = gr.Textbox(label="Final Metrics Used", lines=1)
+                            
+                            with gr.Column():
+                                output_json = gr.Code(
+                                    label="Feature Specification (JSON)",
+                                    language="json",
+                                    lines=20
+                                )
                     
-                    with gr.Column():
-                        output_json = gr.Code(
-                            label="Feature Specification (JSON)",
-                            language="json",
-                            lines=20
+                    with gr.Tab("💻 Code-Based Metrics"):
+                        gr.Markdown("""
+                        **Code-based metrics** provide deterministic, reproducible evaluation using well-known open source packages.
+                        
+                        These complement prompt-based evaluation with measurable, programmatic scores.
+                        """)
+                        
+                        code_metrics_output = gr.Code(
+                            label="Sample Code for Metric Calculation",
+                            language="python",
+                            lines=30
                         )
         
         # --- Event handlers ---
@@ -671,13 +923,6 @@ def create_app() -> gr.Blocks:
             fn=load_feature_template,
             inputs=[group_dd, feature_dd],
             outputs=[feature_name, feature_description, category, input_format, output_format, typical_input, expected_output, selected_metrics, template_status]
-        )
-        
-        # Custom feature toggle
-        custom_toggle.change(
-            fn=lambda x: gr.update(visible=x),
-            inputs=[custom_toggle],
-            outputs=[custom_group]
         )
         
         # Add custom feature
@@ -700,6 +945,32 @@ def create_app() -> gr.Blocks:
             outputs=[selected_metrics]
         )
         
+        # Metrics selection buttons
+        select_all_btn.click(
+            fn=lambda: get_all_metrics_choices(),
+            inputs=[],
+            outputs=[selected_metrics]
+        )
+        
+        unselect_all_btn.click(
+            fn=lambda: [],
+            inputs=[],
+            outputs=[selected_metrics]
+        )
+        
+        select_recommended_btn.click(
+            fn=update_metrics_on_category_change,
+            inputs=[category],
+            outputs=[selected_metrics]
+        )
+        
+        # Location change updates language
+        location.change(
+            fn=get_language_for_location,
+            inputs=[location],
+            outputs=[language]
+        )
+        
         # Generate button
         generate_btn.click(
             fn=generate_prompt,
@@ -711,7 +982,7 @@ def create_app() -> gr.Blocks:
                 check_safety, check_privacy, check_fairness, check_transparency,
                 rai_notes, language
             ],
-            outputs=[output_prompt, metric_defs_output, suggested_metrics_output, used_metrics_output, output_json, status_message]
+            outputs=[output_prompt, metric_defs_output, suggested_metrics_output, used_metrics_output, output_json, code_metrics_output, status_message]
         )
     
     return app
