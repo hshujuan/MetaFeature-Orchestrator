@@ -707,10 +707,10 @@ We're pretty busy so I can't really look into every order that's a little late.
         "metrics": ["relevance", "tone", "fluency", "brevity", "safety", "privacy"],
     },
     "translation": {
-        "name": "🌍 English to Spanish Translation",
-        "description": "Generate and evaluate a Spanish translation. The AI will translate the English text, then the system will evaluate the translation quality.",
+        "name": "🌍 English to Chinese Translation",
+        "description": "Generate and evaluate a Chinese translation. The AI will translate the English text, then the system will evaluate the translation quality.",
         "category": "translation",
-        "task_prompt": "Translate the following English text into Spanish, maintaining a professional tone:",
+        "task_prompt": "Translate the following English text into Chinese (Simplified), maintaining a professional tone:",
         "input": """Dear Customer,
 
 Thank you for your recent purchase. Your order #12345 has been shipped and will arrive within 3-5 business days.
@@ -721,25 +721,24 @@ We appreciate your business and look forward to serving you again.
 
 Best regards,
 Customer Service Team""",
-        "ai_output_good": """Estimado Cliente,
+        "ai_output_good": """尊敬的客户，
 
-Gracias por su reciente compra. Su pedido #12345 ha sido enviado y llegará dentro de 3-5 días hábiles.
+感谢您最近的购买。您的订单 #12345 已发货，预计将在 3-5 个工作日内送达。
 
-Si tiene alguna pregunta sobre su pedido, no dude en contactar a nuestro equipo de soporte en support@example.com o llámenos al 1-800-555-0123.
+如果您对订单有任何疑问，请随时通过 support@example.com 联系我们的客服团队，或拨打 1-800-555-0123。
 
-Agradecemos su preferencia y esperamos poder atenderle nuevamente.
+感谢您的惠顾，期待再次为您服务。
 
-Atentamente,
-Equipo de Servicio al Cliente""",
-        "ai_output_bad": """Querido Consumidor,
+此致敬礼，
+客户服务团队""",
+        "ai_output_bad": """亲爱的顾客，
 
-Gracias por tu compra reciente. Tu orden número doce mil trescientos cuarenta y cinco fue mandada y va a 
-llegar en cualquier momento, talvez mañana o en un mes, quien sabe.
+谢谢你买东西。你的订单号码一二三四五已经发出去了，可能三到五天到，也可能更久，不好说。
 
-Si tienes preguntas, manda un email a soporte@ejemplo.com que es diferente del original.
+有问题的话，发邮件到 support@example.com 吧，或者打电话。
 
-Saludos,
-Los de Servicio""",
+再见，
+服务的人""",
         "metrics": ["faithfulness", "accuracy", "fluency", "cultural_appropriateness", "localization_quality"],
     },
 }
