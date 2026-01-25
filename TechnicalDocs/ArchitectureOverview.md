@@ -143,7 +143,7 @@ if __name__ == "__main__":
 
 ### 3.2 Agent Layer (`FeaturePromptWriterAgent`)
 
-The agent is the **central orchestrator** for generating evaluation prompts. It is stateless—same input produces same output structure (with `temperature=0` for deterministic LLM calls).
+The agent is the **central orchestrator** for generating evaluation prompts. It is stateless and produces consistent output structures for identical inputs.
 
 ```mermaid
 flowchart LR
@@ -906,8 +906,8 @@ sequenceDiagram
 ## 5. Key Architectural Decisions
 
 ### 5.1 Stateless Agent Design
-The `FeaturePromptWriterAgent` is deliberately **stateless**: same input always produces same output structure. Combined with `temperature=0` LLM calls, this enables:
-- Deterministic prompt generation
+The `FeaturePromptWriterAgent` is deliberately **stateless**: no instance variables persist between calls. This enables:
+- Consistent output structures
 - Easy testing
 - No side effects
 
