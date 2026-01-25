@@ -114,6 +114,12 @@ Open your browser to **http://127.0.0.1:7860**
 3. **📊 Quality Metrics**: Select evaluation metrics (relevance, fluency, safety, etc.)
 4. **🛡️ Responsible AI**: Configure RAI constraints (privacy, fairness, safety checks)
 5. **🚀 Generate**: Click "Generate Evaluation Prompt" to create the prompt
+6. **🧪 Simulation**: Test your evaluation prompt with real scenarios:
+   - Select from pre-built scenarios (News Summarization, Email Reply, Translation)
+   - Provide input content and generate Good & Bad AI outputs
+   - Run LLM-based evaluation using your generated prompt
+   - View code-based metrics (ROUGE, readability scores, etc.)
+   - Compare how the evaluation scores Good vs Bad outputs
 
 ### Programmatic Usage
 
