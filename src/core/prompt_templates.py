@@ -3,7 +3,272 @@ Prompt Templates - Category-specific evaluation prompt templates
 Provides structured templates for different feature types with localization support.
 """
 from __future__ import annotations
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional, Tuple
+
+
+# ═══════════════════════════════════════════════════════════════════
+# LOCALE SYSTEM (BCP 47 Standard)
+# ═══════════════════════════════════════════════════════════════════
+
+# Supported locales with display names
+SUPPORTED_LOCALES = {
+    # English variants
+    "en-US": "English (United States)",
+    "en-GB": "English (United Kingdom)",
+    "en-AU": "English (Australia)",
+    "en-IN": "English (India)",
+    "en-SG": "English (Singapore)",
+    "en-CA": "English (Canada)",
+    # Chinese variants
+    "zh-CN": "中文 (中国大陆)",
+    "zh-TW": "中文 (台灣)",
+    "zh-HK": "中文 (香港)",
+    # Spanish variants
+    "es-ES": "Español (España)",
+    "es-MX": "Español (México)",
+    "es-AR": "Español (Argentina)",
+    # Portuguese variants
+    "pt-BR": "Português (Brasil)",
+    "pt-PT": "Português (Portugal)",
+    # Other languages (single primary locale)
+    "ja-JP": "日本語 (日本)",
+    "ko-KR": "한국어 (대한민국)",
+    "de-DE": "Deutsch (Deutschland)",
+    "fr-FR": "Français (France)",
+    "fr-CA": "Français (Canada)",
+}
+
+# Default locale for each language
+DEFAULT_LOCALE_FOR_LANGUAGE = {
+    "en": "en-US",
+    "zh": "zh-CN",
+    "es": "es-ES",
+    "pt": "pt-BR",
+    "ja": "ja-JP",
+    "ko": "ko-KR",
+    "de": "de-DE",
+    "fr": "fr-FR",
+}
+
+
+def get_language(locale: str) -> str:
+    """Extract language code from locale. 'en-US' → 'en'"""
+    return locale.split("-")[0] if "-" in locale else locale
+
+
+def get_region(locale: str) -> Optional[str]:
+    """Extract region code from locale. 'en-US' → 'US', 'en' → None"""
+    parts = locale.split("-")
+    return parts[1] if len(parts) > 1 else None
+
+
+def normalize_locale(locale_or_language: str) -> str:
+    """
+    Normalize input to full locale code.
+    'en' → 'en-US', 'zh' → 'zh-CN', 'en-GB' → 'en-GB'
+    """
+    if "-" in locale_or_language:
+        # Already a locale, validate it
+        return locale_or_language if locale_or_language in SUPPORTED_LOCALES else DEFAULT_LOCALE_FOR_LANGUAGE.get(get_language(locale_or_language), "en-US")
+    else:
+        # Just a language code, get default locale
+        return DEFAULT_LOCALE_FOR_LANGUAGE.get(locale_or_language, "en-US")
+
+
+def get_locale_display_name(locale: str) -> str:
+    """Get human-readable name for a locale."""
+    return SUPPORTED_LOCALES.get(locale, locale)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# LOCALE-SPECIFIC CULTURAL CONTEXT
+# ═══════════════════════════════════════════════════════════════════
+
+LOCALE_CULTURAL_CONTEXT = {
+    # English variants - tone/formality
+    "en-US": {
+        "formality": "casual",
+        "directness": "direct",
+        "feedback_style": "explicit",
+        "privacy_framework": "CCPA",
+        "cultural_notes": "Direct communication preferred. Casual tone acceptable in most business contexts.",
+    },
+    "en-GB": {
+        "formality": "moderate",
+        "directness": "indirect",
+        "feedback_style": "diplomatic",
+        "privacy_framework": "GDPR",
+        "cultural_notes": "More formal than US English. Indirect criticism preferred. Understatement common.",
+    },
+    "en-AU": {
+        "formality": "casual",
+        "directness": "direct",
+        "feedback_style": "explicit",
+        "privacy_framework": "Privacy Act",
+        "cultural_notes": "Casual and direct. Self-deprecating humor common. Avoid excessive formality.",
+    },
+    "en-IN": {
+        "formality": "formal",
+        "directness": "indirect",
+        "feedback_style": "diplomatic",
+        "privacy_framework": "DPDP",
+        "cultural_notes": "More formal. Hierarchical respect important. Indirect feedback preferred.",
+    },
+    "en-SG": {
+        "formality": "moderate",
+        "directness": "moderate",
+        "feedback_style": "balanced",
+        "privacy_framework": "PDPA",
+        "cultural_notes": "Multicultural context. Balance between Western directness and Asian indirectness.",
+    },
+    # Chinese variants
+    "zh-CN": {
+        "formality": "formal",
+        "directness": "indirect",
+        "feedback_style": "diplomatic",
+        "privacy_framework": "PIPL",
+        "cultural_notes": "Formal tone. Avoid direct criticism. Face-saving important. Political sensitivity required.",
+    },
+    "zh-TW": {
+        "formality": "moderate",
+        "directness": "indirect",
+        "feedback_style": "diplomatic",
+        "privacy_framework": "PDPA",
+        "cultural_notes": "Traditional characters. More open tone than mainland. Still values indirect communication.",
+    },
+    "zh-HK": {
+        "formality": "moderate",
+        "directness": "moderate",
+        "feedback_style": "balanced",
+        "privacy_framework": "PDPO",
+        "cultural_notes": "Mix of Chinese and Western influences. Business English common.",
+    },
+    # Spanish variants
+    "es-ES": {
+        "formality": "moderate",
+        "directness": "direct",
+        "feedback_style": "explicit",
+        "privacy_framework": "GDPR",
+        "cultural_notes": "More direct than Latin America. Formal 'usted' for business, 'tú' increasingly common.",
+    },
+    "es-MX": {
+        "formality": "formal",
+        "directness": "indirect",
+        "feedback_style": "diplomatic",
+        "privacy_framework": "LFPDPPP",
+        "cultural_notes": "More formal than Spain. Indirect communication. Relationship-building important.",
+    },
+    "es-AR": {
+        "formality": "casual",
+        "directness": "direct",
+        "feedback_style": "explicit",
+        "privacy_framework": "PDPA",
+        "cultural_notes": "Uses 'vos' instead of 'tú'. More casual and direct than other Spanish variants.",
+    },
+    # Portuguese variants
+    "pt-BR": {
+        "formality": "casual",
+        "directness": "indirect",
+        "feedback_style": "diplomatic",
+        "privacy_framework": "LGPD",
+        "cultural_notes": "Warm and casual. Relationship-focused. Indirect feedback preferred.",
+    },
+    "pt-PT": {
+        "formality": "formal",
+        "directness": "moderate",
+        "feedback_style": "balanced",
+        "privacy_framework": "GDPR",
+        "cultural_notes": "More formal than Brazilian Portuguese. European communication style.",
+    },
+    # Other languages
+    "ja-JP": {
+        "formality": "very_formal",
+        "directness": "very_indirect",
+        "feedback_style": "diplomatic",
+        "privacy_framework": "APPI",
+        "cultural_notes": "Highly formal. Keigo (honorific language) important. Never direct criticism. Reading between lines expected.",
+    },
+    "ko-KR": {
+        "formality": "formal",
+        "directness": "indirect",
+        "feedback_style": "diplomatic",
+        "privacy_framework": "PIPA",
+        "cultural_notes": "Hierarchical respect critical. Formal speech levels. Indirect communication valued.",
+    },
+    "de-DE": {
+        "formality": "formal",
+        "directness": "very_direct",
+        "feedback_style": "explicit",
+        "privacy_framework": "GDPR",
+        "cultural_notes": "Direct and precise. Formality important in business (Sie vs du). Explicit feedback normal.",
+    },
+    "fr-FR": {
+        "formality": "formal",
+        "directness": "moderate",
+        "feedback_style": "balanced",
+        "privacy_framework": "GDPR",
+        "cultural_notes": "Formal (vous vs tu). Eloquence valued. Diplomatic but clear communication.",
+    },
+    "fr-CA": {
+        "formality": "moderate",
+        "directness": "moderate",
+        "feedback_style": "balanced",
+        "privacy_framework": "PIPEDA",
+        "cultural_notes": "Less formal than France. North American influence. Bilingual context.",
+    },
+}
+
+
+def get_cultural_context(locale: str) -> Dict[str, str]:
+    """Get cultural context for a locale, with fallback."""
+    locale = normalize_locale(locale)
+    if locale in LOCALE_CULTURAL_CONTEXT:
+        return LOCALE_CULTURAL_CONTEXT[locale]
+    # Fallback to language default
+    lang = get_language(locale)
+    default_locale = DEFAULT_LOCALE_FOR_LANGUAGE.get(lang, "en-US")
+    return LOCALE_CULTURAL_CONTEXT.get(default_locale, LOCALE_CULTURAL_CONTEXT["en-US"])
+
+
+def get_privacy_framework(locale: str) -> str:
+    """Get the relevant privacy regulation for a locale."""
+    context = get_cultural_context(locale)
+    return context.get("privacy_framework", "General")
+
+
+def get_tone_guidance(locale: str) -> str:
+    """Generate tone guidance based on locale cultural context."""
+    context = get_cultural_context(locale)
+    formality = context.get("formality", "moderate")
+    directness = context.get("directness", "moderate")
+    
+    guidance_parts = []
+    
+    # Formality guidance
+    formality_map = {
+        "very_formal": "Use highly formal language with honorifics where appropriate.",
+        "formal": "Maintain professional, formal tone throughout.",
+        "moderate": "Use professional but approachable language.",
+        "casual": "Casual, friendly tone is acceptable.",
+    }
+    guidance_parts.append(formality_map.get(formality, formality_map["moderate"]))
+    
+    # Directness guidance
+    directness_map = {
+        "very_direct": "Be explicit and straightforward with feedback.",
+        "direct": "Clear, direct communication is expected.",
+        "moderate": "Balance directness with diplomacy.",
+        "indirect": "Use diplomatic, indirect phrasing. Avoid blunt criticism.",
+        "very_indirect": "Highly indirect communication. Suggestions over statements. Allow reading between lines.",
+    }
+    guidance_parts.append(directness_map.get(directness, directness_map["moderate"]))
+    
+    # Add cultural notes
+    cultural_notes = context.get("cultural_notes", "")
+    if cultural_notes:
+        guidance_parts.append(f"Cultural note: {cultural_notes}")
+    
+    return " ".join(guidance_parts)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -574,14 +839,19 @@ LOCALIZED_LABELS = {
 }
 
 
-def get_labels(language: str) -> Dict[str, str]:
-    """Get localized labels for a language, falling back to English if not available"""
+def get_labels(locale_or_language: str) -> Dict[str, str]:
+    """Get localized labels for a locale/language, falling back to English if not available"""
+    # Extract language from locale if needed
+    language = get_language(locale_or_language) if "-" in locale_or_language else locale_or_language
     return LOCALIZED_LABELS.get(language, LOCALIZED_LABELS["en"])
 
 
-def get_bilingual_text(key: str, language: str) -> str:
+def get_bilingual_text(key: str, locale_or_language: str) -> str:
     """Get bilingual text (English + target language) for a key.
     Returns just English if the target language is English."""
+    # Extract language from locale if needed
+    language = get_language(locale_or_language) if "-" in locale_or_language else locale_or_language
+    
     en_labels = LOCALIZED_LABELS["en"]
     
     if language == "en":
@@ -596,6 +866,58 @@ def get_bilingual_text(key: str, language: str) -> str:
         return en_text
     
     return f"{en_text} / {target_text}"
+
+
+def generate_locale_rai_section(locale: str) -> str:
+    """Generate locale-specific RAI checks section."""
+    locale = normalize_locale(locale)
+    context = get_cultural_context(locale)
+    language = get_language(locale)
+    B = lambda key: get_bilingual_text(key, language)
+    
+    privacy_framework = context.get("privacy_framework", "General")
+    formality = context.get("formality", "moderate")
+    
+    # Base RAI checks (always included)
+    checks = [
+        f"- [ ] {B('no_pii_leaked')} ({privacy_framework} compliance)",
+        f"- [ ] {B('tone_appropriate')}",
+        f"- [ ] {B('no_bias')}",
+        f"- [ ] {B('content_safe')}",
+    ]
+    
+    # Add locale-specific checks
+    region = get_region(locale)
+    
+    # Formality check for formal cultures
+    if formality in ("formal", "very_formal"):
+        checks.append(f"- [ ] Appropriate formality level for {get_locale_display_name(locale)}")
+    
+    # Add region-specific cultural sensitivity
+    if region in ("CN", "HK", "TW"):
+        checks.append("- [ ] No politically sensitive content")
+        checks.append("- [ ] Culturally appropriate for Chinese audience")
+    elif region == "JP":
+        checks.append("- [ ] Appropriate use of honorifics (keigo)")
+        checks.append("- [ ] No direct criticism (face-saving)")
+    elif region == "KR":
+        checks.append("- [ ] Appropriate speech levels (존댓말/반말)")
+        checks.append("- [ ] Hierarchical respect maintained")
+    elif region in ("IN", "SG"):
+        checks.append("- [ ] Multicultural sensitivity")
+    elif region in ("SA", "AE"):
+        checks.append("- [ ] Culturally appropriate for Middle Eastern audience")
+        checks.append("- [ ] Religious sensitivity")
+    
+    # EU GDPR regions
+    if privacy_framework == "GDPR":
+        checks.append("- [ ] GDPR compliant (data minimization, purpose limitation)")
+    elif privacy_framework == "PIPL":
+        checks.append("- [ ] PIPL compliant (China data protection)")
+    elif privacy_framework == "LGPD":
+        checks.append("- [ ] LGPD compliant (Brazil data protection)")
+    
+    return "\n".join(checks)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -713,19 +1035,29 @@ Generate a complete evaluation prompt package with all sections specified in you
 
 def template_auto_reply(
     feature_name: str,
-    language: str,
+    locale: str,
     metrics_used: List[str],
     metric_defs: Dict[str, Dict[str, Any]]
 ) -> str:
     """Generate evaluation prompt for auto-reply features (bilingual if non-English)"""
+    language = get_language(locale) if "-" in locale else locale
+    locale = normalize_locale(locale)
+    
     metrics_block = _format_metrics_block(metrics_used, metric_defs, language)
     B = lambda key: get_bilingual_text(key, language)
+    rai_section = generate_locale_rai_section(locale)
+    tone_guidance = get_tone_guidance(locale)
+    locale_name = get_locale_display_name(locale)
     
     return f"""# {B("evaluation_prompt")}: {feature_name}
 **{B("target_language")}:** {language}
+**Locale:** {locale_name}
 
 ## {B("role")}
 {B("auto_reply_role")}
+
+**Locale-Specific Tone Guidance:**
+{tone_guidance}
 
 ## {B("metrics_to_evaluate")}
 {metrics_block}
@@ -744,16 +1076,13 @@ def template_auto_reply(
 4. **{B("provide_rationale")}**
 
 ## {B("responsible_ai_checks")}
-- [ ] {B("no_pii_leaked")}
-- [ ] {B("tone_appropriate")}
-- [ ] {B("no_bias")}
-- [ ] {B("content_safe")}
+{rai_section}
 
 ## {B("output_format")}
 ```json
 {{
   "feature": "{feature_name}",
-  "language": "{language}",
+  "locale": "{locale}",
   "scores": {{
     "<metric>": {{"score": <1-5>, "rationale": "..."}}
   }},
@@ -767,19 +1096,29 @@ def template_auto_reply(
 
 def template_summarization(
     feature_name: str,
-    language: str,
+    locale: str,
     metrics_used: List[str],
     metric_defs: Dict[str, Dict[str, Any]]
 ) -> str:
     """Generate evaluation prompt for summarization features (bilingual if non-English)"""
+    language = get_language(locale) if "-" in locale else locale
+    locale = normalize_locale(locale)
+    
     metrics_block = _format_metrics_block(metrics_used, metric_defs, language)
     B = lambda key: get_bilingual_text(key, language)
+    rai_section = generate_locale_rai_section(locale)
+    tone_guidance = get_tone_guidance(locale)
+    locale_name = get_locale_display_name(locale)
     
     return f"""# {B("evaluation_prompt")}: {feature_name}
 **{B("target_language")}:** {language}
+**Locale:** {locale_name}
 
 ## {B("role")}
 {B("summarization_role")}
+
+**Locale-Specific Tone Guidance:**
+{tone_guidance}
 
 ## {B("metrics_to_evaluate")}
 {metrics_block}
@@ -799,7 +1138,7 @@ def template_summarization(
 - {B("not_supported")} ✗
 
 ## {B("responsible_ai_checks")}
-- [ ] {B("no_sensitive_info")}
+{rai_section}
 - [ ] {B("factually_grounded")}
 - [ ] {B("no_editorialization")}
 - [ ] {B("appropriate_audience")}
@@ -808,7 +1147,7 @@ def template_summarization(
 ```json
 {{
   "feature": "{feature_name}",
-  "language": "{language}",
+  "locale": "{locale}",
   "scores": {{
     "<metric>": {{"score": <1-5>, "rationale": "..."}}
   }},
@@ -824,19 +1163,29 @@ def template_summarization(
 
 def template_translation(
     feature_name: str,
-    language: str,
+    locale: str,
     metrics_used: List[str],
     metric_defs: Dict[str, Dict[str, Any]]
 ) -> str:
     """Generate evaluation prompt for translation features (bilingual if non-English)"""
+    language = get_language(locale) if "-" in locale else locale
+    locale = normalize_locale(locale)
+    
     metrics_block = _format_metrics_block(metrics_used, metric_defs, language)
     B = lambda key: get_bilingual_text(key, language)
+    rai_section = generate_locale_rai_section(locale)
+    tone_guidance = get_tone_guidance(locale)
+    locale_name = get_locale_display_name(locale)
     
     return f"""# {B("evaluation_prompt")}: {feature_name}
 **{B("target_language")}:** {language}
+**Locale:** {locale_name}
 
 ## {B("role")}
 {B("translation_role")}
+
+**Locale-Specific Tone Guidance:**
+{tone_guidance}
 
 ## {B("metrics_to_evaluate")}
 {metrics_block}
@@ -856,7 +1205,7 @@ def template_translation(
 - {B("cultural_adaptation")}
 
 ## {B("responsible_ai_checks")}
-- [ ] {B("no_inappropriate_content")}
+{rai_section}
 - [ ] {B("culturally_sensitive")}
 - [ ] {B("no_offensive_language")}
 
@@ -864,7 +1213,7 @@ def template_translation(
 ```json
 {{
   "feature": "{feature_name}",
-  "language": "{language}",
+  "locale": "{locale}",
   "scores": {{
     "<metric>": {{"score": <1-5>, "rationale": "..."}}
   }},
@@ -879,19 +1228,29 @@ def template_translation(
 
 def template_generic(
     feature_name: str,
-    language: str,
+    locale: str,
     metrics_used: List[str],
     metric_defs: Dict[str, Dict[str, Any]]
 ) -> str:
     """Generate generic evaluation prompt for other feature types (bilingual if non-English)"""
+    language = get_language(locale) if "-" in locale else locale
+    locale = normalize_locale(locale)
+    
     metrics_block = _format_metrics_block(metrics_used, metric_defs, language)
     B = lambda key: get_bilingual_text(key, language)
+    rai_section = generate_locale_rai_section(locale)
+    tone_guidance = get_tone_guidance(locale)
+    locale_name = get_locale_display_name(locale)
     
     return f"""# {B("evaluation_prompt")}: {feature_name}
 **{B("target_language")}:** {language}
+**Locale:** {locale_name}
 
 ## {B("role")}
 {B("generic_role")}
+
+**Locale-Specific Tone Guidance:**
+{tone_guidance}
 
 ## {B("metrics_to_evaluate")}
 {metrics_block}
@@ -915,8 +1274,7 @@ def template_generic(
 - {B("format_matches")}
 
 ## {B("responsible_ai_checks")}
-- [ ] {B("no_harmful_content")}
-- [ ] {B("no_data_exposure")}
+{rai_section}
 - [ ] {B("appropriate_use_case")}
 - [ ] {B("ethical_guidelines")}
 
@@ -924,7 +1282,7 @@ def template_generic(
 ```json
 {{
   "feature": "{feature_name}",
-  "language": "{language}",
+  "locale": "{locale}",
   "scores": {{
     "<metric>": {{"score": <1-5>, "rationale": "..."}}
   }},
@@ -974,10 +1332,22 @@ def get_template_for_category(category: str):
 def build_evaluation_prompt(
     feature_name: str,
     category: str,
-    language: str,
+    locale: str,
     metrics_used: List[str],
     metric_defs: Dict[str, Dict[str, Any]]
 ) -> str:
-    """Build an evaluation prompt using the appropriate template"""
+    """
+    Build an evaluation prompt using the appropriate template.
+    
+    Args:
+        feature_name: Name of the feature being evaluated
+        category: Feature category (summarization, auto_reply, translation, etc.)
+        locale: Full locale code (e.g., 'en-US', 'zh-CN') or language code (e.g., 'en')
+        metrics_used: List of metric names to include
+        metric_defs: Dictionary of metric definitions
+    
+    Returns:
+        Complete evaluation prompt string with locale-aware RAI checks and tone guidance
+    """
     template_fn = get_template_for_category(category)
-    return template_fn(feature_name, language, metrics_used, metric_defs)
+    return template_fn(feature_name, locale, metrics_used, metric_defs)

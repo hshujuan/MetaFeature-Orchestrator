@@ -92,11 +92,15 @@ class FeatureMetadata(BaseModel):
     input_description: str = Field(default="", description="Description of input format")
     output_description: str = Field(default="", description="Description of expected output")
     
-    # Localization
-    supported_languages: List[str] = Field(default_factory=lambda: ["en"])
-    target_language: str = Field(default="en", description="Language being evaluated")
-    target_location: str = Field(default="United States", description="Locale/region")
-    locale_considerations: str = Field(default="", description="Special locale requirements")
+    # Localization (using BCP 47 locale codes)
+    supported_locales: List[str] = Field(default_factory=lambda: ["en-US"], description="Supported locales (BCP 47)")
+    target_locale: str = Field(default="en-US", description="Target locale for evaluation (e.g., en-US, zh-CN, es-MX)")
+    locale_considerations: str = Field(default="", description="Special locale/cultural requirements")
+    
+    # Legacy fields (for backward compatibility)
+    supported_languages: List[str] = Field(default_factory=lambda: ["en"], description="[Deprecated] Use supported_locales")
+    target_language: str = Field(default="en", description="[Deprecated] Use target_locale")
+    target_location: str = Field(default="", description="[Deprecated] Use target_locale")
     
     # Success Criteria & Metrics
     quality_metrics: List[QualityMetric] = Field(default_factory=list)
@@ -131,13 +135,18 @@ class FeatureSpec:
     category: str
     input_format: str
     output_format: str
-    languages_supported: List[str]
+    locales_supported: List[str]  # BCP 47 locale codes (e.g., ['en-US', 'es-MX'])
     success_metrics: List[str]
     privacy_sensitive: bool = True
     safety_critical: bool = False
     
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
+    
+    @property
+    def languages_supported(self) -> List[str]:
+        """Legacy property - extracts language codes from locales"""
+        return list(set(loc.split("-")[0] for loc in self.locales_supported))
 
 
 # ═══════════════════════════════════════════════════════════════════
