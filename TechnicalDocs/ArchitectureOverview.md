@@ -22,7 +22,6 @@
 | [src/core/prompt_templates.py](../src/core/prompt_templates.py) | Prompt engineering - **core prompt generation logic** including `build_evaluation_prompt()`, category-specific templates (auto_reply, summarization, translation, generic), bilingual text rendering, metrics block formatting, scoring rubrics, and JSON output schemas |
 | [src/core/code_metrics.py](../src/core/code_metrics.py) | Programmatic metrics - code-based evaluation using open-source NLP libraries |
 | [src/core/image_generator.py](../src/core/image_generator.py) | Image generation - DALL-E 3 integration for testing image features |
-| [src/openai_service.py](../src/openai_service.py) | Azure OpenAI service - alternative client for direct Azure API calls |
 | [README.md](../README.md) | Project documentation - design principles and usage instructions |
 | [requirements.txt](../requirements.txt) | Dependencies - core packages (gradio, pydantic, openai, python-dotenv) |
 
@@ -80,7 +79,6 @@ flowchart TB
 
     subgraph Integration["External Integration"]
         LLM[LLMClient<br/>llm_client.py]
-        OPENAI[openai_service.py]
         IMG_GEN[ImageGenerator<br/>image_generator.py]
     end
 
@@ -421,16 +419,6 @@ sequenceDiagram
 get_llm_client()      # Get LLMClient singleton
 get_openai_client()   # Get raw OpenAI client
 chat_completion(...)  # Direct chat completion
-```
-
-**Alternative: `openai_service.py`** (from [src/openai_service.py](../src/openai_service.py)):
-
-A simpler, direct Azure OpenAI client for specific use cases:
-```python
-from src.openai_service import generate_image
-
-# Uses AzureOpenAI client directly
-image_url = generate_image("A cat astronaut in space")
 ```
 
 ---

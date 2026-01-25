@@ -42,7 +42,6 @@ MetaFeature-Orchestrator/
 │   │   ├── prompt_templates.py  # Category-specific templates with bilingual support
 │   │   ├── schemas.py           # Pydantic models and dataclasses
 │   │   └── __init__.py
-│   ├── openai_service.py        # Direct Azure OpenAI service
 │   ├── data/                    # SQLite database
 │   └── __init__.py
 ├── TechnicalDocs/               # Architecture and technical documentation
