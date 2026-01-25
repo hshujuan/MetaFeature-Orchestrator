@@ -4,11 +4,20 @@ Automatically generates high-quality evaluation prompts with metric-first design
 """
 from __future__ import annotations
 import json
+import logging
 import sys
 from pathlib import Path
 from typing import Optional, List, Dict
 
 import gradio as gr
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    datefmt='%H:%M:%S'
+)
+logger = logging.getLogger(__name__)
 
 # Handle both direct execution and module import
 if __name__ == "__main__":
@@ -32,6 +41,7 @@ if __name__ == "__main__":
     from src.core.agent import FeaturePromptWriterAgent
     from src.core.database import FeatureStore, PromptTemplateStore, RunStore
     from src.core.code_metrics import generate_code_metrics_sample, get_code_metrics_for_category
+    from src.core.llm_client import LLMClient
 else:
     from .schemas import (
         FeatureMetadata,
@@ -50,6 +60,7 @@ else:
     from .agent import FeaturePromptWriterAgent
     from .database import FeatureStore, PromptTemplateStore, RunStore
     from .code_metrics import generate_code_metrics_sample, get_code_metrics_for_category
+    from .llm_client import LLMClient
 
 
 # Initialize stores
@@ -614,6 +625,469 @@ def update_metrics_on_category_change(category: str) -> List[str]:
     return DEFAULT_METRICS_BY_CATEGORY.get(cat, DEFAULT_METRICS_BY_CATEGORY.get("generic", []))
 
 
+# ═══════════════════════════════════════════════════════════════════
+# SIMULATION SCENARIOS
+# ═══════════════════════════════════════════════════════════════════
+
+SIMULATION_SCENARIOS = {
+    "summarization": {
+        "name": "📰 News Article Summarization",
+        "description": "Generate and evaluate a summary of a news article. The AI will summarize the article, then the system will evaluate the summary using both LLM-based and code-based metrics.",
+        "category": "summarization",
+        "task_prompt": "Summarize the following news article in 2-3 sentences, capturing the key facts:",
+        "input": """ORIGINAL ARTICLE:
+Scientists at MIT have developed a new type of solar cell that can convert sunlight into electricity with 
+unprecedented efficiency. The breakthrough, published in Nature Energy, shows the cells achieving 47.1% 
+efficiency under concentrated sunlight - nearly double the efficiency of conventional silicon solar panels.
+
+The new cells use a multi-junction design with layers of different semiconductor materials, each optimized 
+to capture different wavelengths of light. Lead researcher Dr. Sarah Chen said the technology could 
+revolutionize renewable energy production within the next decade.
+
+"This is a game-changer for solar energy," Dr. Chen stated in a press conference. "While there are still 
+manufacturing challenges to overcome, we believe commercial deployment could begin as early as 2028."
+
+The research was funded by the Department of Energy and private investors totaling $15 million. Industry 
+analysts predict the technology could reduce the cost of solar energy by up to 40% once mass production begins.""",
+        "ai_output_good": """MIT researchers have developed solar cells achieving 47.1% efficiency under concentrated sunlight - 
+nearly double conventional silicon panels. The multi-junction design uses layered semiconductors to capture 
+different light wavelengths. Lead researcher Dr. Sarah Chen expects commercial deployment by 2028, 
+potentially reducing solar energy costs by 40%.""",
+        "ai_output_bad": """Scientists have created amazing new solar panels that are 100% efficient and will solve all 
+our energy problems immediately. The technology was invented last week and is already being sold in stores. 
+Dr. John Smith, who won a Nobel Prize for this work, says everyone should buy these panels today because 
+they're practically free.""",
+        "metrics": ["faithfulness", "coverage", "groundedness", "fluency", "brevity", "safety"],
+    },
+    "auto_reply": {
+        "name": "📧 Professional Email Reply",
+        "description": "Generate and evaluate a professional customer service email reply. The AI will compose a helpful response, then the system will evaluate it for tone, relevance, and helpfulness.",
+        "category": "auto_reply",
+        "task_prompt": "Write a professional, empathetic, and helpful customer service reply to the following email:",
+        "input": """FROM: john.doe@customer.com
+SUBJECT: Problem with my order
+
+Hi,
+
+I ordered a laptop 2 weeks ago (Order #98765) but it still hasn't arrived. The tracking shows it's been 
+stuck in transit for 5 days. I need this for work and I'm getting very frustrated.
+
+Can someone please help me figure out what's going on?
+
+Thanks,
+John""",
+        "ai_output_good": """Dear John,
+
+Thank you for reaching out, and I sincerely apologize for the frustration caused by this delay with your 
+laptop order (#98765).
+
+I've looked into your order and can see it has been delayed in transit. Here's what I'm doing to help:
+
+1. I've opened an investigation with our shipping partner to locate your package
+2. I've escalated this to our logistics team for priority handling
+3. You'll receive an update within 24 hours with the resolution
+
+If the package cannot be located within 48 hours, I'll arrange for a replacement to be shipped via 
+express delivery at no extra cost.
+
+Please feel free to reply to this email or call us at 1-800-XXX-XXXX if you have any questions.
+
+Best regards,
+Sarah
+Customer Support Team""",
+        "ai_output_bad": """John,
+
+Yeah, shipping is slow sometimes. Not much we can do about it. You should have ordered earlier if you 
+needed it for work. 
+
+Check the tracking again in a few days. If it's still not there, maybe file a claim or something. 
+We're pretty busy so I can't really look into every order that's a little late.
+
+- Support""",
+        "metrics": ["relevance", "tone", "fluency", "brevity", "safety", "privacy"],
+    },
+    "translation": {
+        "name": "🌍 English to Spanish Translation",
+        "description": "Generate and evaluate a Spanish translation. The AI will translate the English text, then the system will evaluate the translation quality.",
+        "category": "translation",
+        "task_prompt": "Translate the following English text into Spanish, maintaining a professional tone:",
+        "input": """Dear Customer,
+
+Thank you for your recent purchase. Your order #12345 has been shipped and will arrive within 3-5 business days.
+
+If you have any questions about your order, please don't hesitate to contact our support team at support@example.com or call us at 1-800-555-0123.
+
+We appreciate your business and look forward to serving you again.
+
+Best regards,
+Customer Service Team""",
+        "ai_output_good": """Estimado Cliente,
+
+Gracias por su reciente compra. Su pedido #12345 ha sido enviado y llegará dentro de 3-5 días hábiles.
+
+Si tiene alguna pregunta sobre su pedido, no dude en contactar a nuestro equipo de soporte en support@example.com o llámenos al 1-800-555-0123.
+
+Agradecemos su preferencia y esperamos poder atenderle nuevamente.
+
+Atentamente,
+Equipo de Servicio al Cliente""",
+        "ai_output_bad": """Querido Consumidor,
+
+Gracias por tu compra reciente. Tu orden número doce mil trescientos cuarenta y cinco fue mandada y va a 
+llegar en cualquier momento, talvez mañana o en un mes, quien sabe.
+
+Si tienes preguntas, manda un email a soporte@ejemplo.com que es diferente del original.
+
+Saludos,
+Los de Servicio""",
+        "metrics": ["faithfulness", "accuracy", "fluency", "cultural_appropriateness", "localization_quality"],
+    },
+}
+
+
+def generate_ai_output_for_scenario(scenario_choice: str, custom_input: str) -> tuple:
+    """Generate BOTH good and bad AI outputs for evaluation comparison"""
+    logger.info(f"Generating AI outputs for scenario: {scenario_choice}")
+    
+    if not scenario_choice:
+        logger.warning("No scenario selected for generation")
+        return "❌ Please select a scenario first.", "", ""
+    
+    # REQUIRE input from user
+    if not custom_input or not custom_input.strip():
+        logger.warning("No input provided")
+        return "❌ Please provide input/source content first before generating outputs.", "", ""
+    
+    # Extract scenario key
+    key = scenario_choice.split("(")[-1].rstrip(")")
+    if key not in SIMULATION_SCENARIOS:
+        return "❌ Invalid scenario selected.", "", ""
+    
+    scenario = SIMULATION_SCENARIOS[key]
+    input_text = custom_input.strip()
+    task_prompt = scenario.get("task_prompt", "Process the following input:")
+    category = scenario.get("category", "other")
+    
+    try:
+        llm = LLMClient()
+        
+        # Generate GOOD output - with quality-focused prompt
+        logger.info("Generating GOOD quality output...")
+        good_system_prompt = get_good_output_system_prompt(category)
+        good_output = llm.chat_completion(
+            messages=[
+                {"role": "system", "content": good_system_prompt},
+                {"role": "user", "content": f"{task_prompt}\n\n{input_text}"}
+            ],
+            temperature=0.3,  # Lower temperature for more accurate output
+            max_tokens=1000
+        )
+        
+        # Generate BAD output - with intentional quality issues
+        logger.info("Generating BAD quality output (for comparison)...")
+        bad_system_prompt = get_bad_output_system_prompt(category)
+        bad_output = llm.chat_completion(
+            messages=[
+                {"role": "system", "content": bad_system_prompt},
+                {"role": "user", "content": f"{task_prompt}\n\n{input_text}"}
+            ],
+            temperature=0.9,  # Higher temperature for more variation
+            max_tokens=1000
+        )
+        
+        status = f"""✅ Generated BOTH outputs for comparison!
+- Scenario: {scenario['name']}
+- Good output: High-quality, accurate response
+- Bad output: Intentionally flawed for evaluation testing
+
+Now select which output to evaluate and click 'Evaluate Output'."""
+        
+        logger.info("Both outputs generated successfully")
+        return status, good_output, bad_output
+        
+    except Exception as e:
+        logger.error(f"Generation failed: {str(e)}")
+        return f"❌ Error generating outputs: {str(e)}", "", ""
+
+
+def get_good_output_system_prompt(category: str) -> str:
+    """Get system prompt for generating HIGH-QUALITY output"""
+    base = """You are an expert AI assistant producing HIGH-QUALITY output. Follow these guidelines:
+- Be accurate, factual, and well-structured
+- Use appropriate tone and formatting
+- Be concise but complete
+- Follow best practices for this type of task"""
+    
+    category_additions = {
+        "summarization": "\n- Capture all key points faithfully\n- Do not add information not in the source\n- Maintain logical flow\n- Use clear, professional language",
+        "auto_reply": "\n- Be professional and courteous\n- Address all points raised\n- Use appropriate greeting and closing\n- Show empathy where appropriate",
+        "translation": "\n- Translate accurately preserving meaning\n- Use natural, idiomatic language\n- Maintain tone and register of original\n- Preserve cultural nuances",
+    }
+    return base + category_additions.get(category, "")
+
+
+def get_bad_output_system_prompt(category: str) -> str:
+    """Get system prompt for generating INTENTIONALLY FLAWED output for testing"""
+    base = """CRITICAL: You MUST generate a POOR QUALITY response for AI evaluation testing.
+
+Your task is to DELIBERATELY produce flawed output. This is for testing evaluation systems.
+
+YOU MUST INCLUDE AT LEAST 3 OF THESE FLAWS:
+1. HALLUCINATE: Add 1-2 fake facts/details NOT in the source (e.g., wrong numbers, made-up names, fictional events)
+2. MISS KEY INFO: Omit 1-2 important points from the source
+3. BE VAGUE: Use generic filler phrases like "very important", "significant impact", "various reasons" without specifics
+4. WRONG TONE: Use overly casual language ("Hey!", "BTW", "gonna") or robotic corporate speak
+5. GRAMMAR ISSUES: Include 1-2 awkward sentence structures
+6. FACTUAL ERROR: Get a detail slightly wrong (wrong date, wrong name, wrong number)
+
+REMEMBER: This is intentionally bad output for testing. Do NOT produce high-quality output."""
+    
+    category_additions = {
+        "summarization": """
+
+FOR SUMMARIZATION - YOU MUST:
+- Add at least ONE claim not in the original (hallucination)
+- Miss at least ONE key fact
+- Use vague phrases like "very significant" or "extremely important" without specifics
+- Make it either too short (missing details) or too verbose (padding with fluff)""",
+        
+        "auto_reply": """
+
+FOR EMAIL REPLY - YOU MUST:
+- Use inappropriate tone (too casual like "Hey buddy!" or too robotic)
+- Miss addressing at least ONE concern from the original email
+- Include generic unhelpful phrases like "We value your feedback" without substance
+- Sound like a template response, not personalized""",
+        
+        "translation": """
+
+FOR TRANSLATION - YOU MUST:
+- Use awkward literal translations that sound unnatural
+- Get at least ONE phrase wrong or use wrong register (too formal/informal)
+- Include at least ONE grammar error in the target language
+- Miss cultural context or idioms""",
+    }
+    return base + category_additions.get(category, "")
+
+
+def get_simulation_scenarios() -> List[str]:
+    """Get list of simulation scenario names"""
+    return [f"{v['name']} ({k})" for k, v in SIMULATION_SCENARIOS.items()]
+
+
+def load_simulation_scenario(scenario_choice: str) -> tuple:
+    """Load a simulation scenario"""
+    logger.info(f"Loading scenario: {scenario_choice}")
+    if not scenario_choice:
+        logger.warning("No scenario selected")
+        return "", "", "", "", []
+    
+    # Extract the key from the choice
+    key = scenario_choice.split("(")[-1].rstrip(")")
+    if key not in SIMULATION_SCENARIOS:
+        logger.error(f"Invalid scenario key: {key}")
+        return "", "", "", "", []
+    
+    scenario = SIMULATION_SCENARIOS[key]
+    logger.info(f"Loaded scenario '{key}' with {len(scenario['metrics'])} metrics")
+    logger.info(f"Good example length: {len(scenario['ai_output_good'])} chars")
+    logger.info(f"Bad example length: {len(scenario['ai_output_bad'])} chars")
+    return (
+        scenario["description"],
+        scenario["input"],
+        scenario["ai_output_good"],
+        scenario["ai_output_bad"],
+        scenario["metrics"]
+    )
+
+
+def run_simulation(
+    scenario_choice: str,
+    input_text: str,
+    ai_output: str,
+    selected_metrics: List[str],
+    use_good_output: bool,
+    language: str
+) -> tuple:
+    """Run evaluation on the provided AI output"""
+    logger.info(f"Running evaluation for scenario: {scenario_choice}")
+    logger.info(f"Selected metrics: {selected_metrics}")
+    logger.info(f"Evaluating {'GOOD' if use_good_output else 'BAD'} output, Language: {language}")
+    
+    if not scenario_choice:
+        return "❌ Please select a scenario first.", "", "", ""
+    
+    if not input_text or not input_text.strip():
+        return "❌ Please provide input/source content first.", "", "", ""
+    
+    if not ai_output or not ai_output.strip():
+        return "❌ No output to evaluate. Please generate outputs first by clicking 'Generate Good & Bad Outputs'.", "", "", ""
+    
+    # Extract scenario key
+    key = scenario_choice.split("(")[-1].rstrip(")")
+    if key not in SIMULATION_SCENARIOS:
+        return "❌ Invalid scenario selected.", "", "", ""
+    
+    scenario = SIMULATION_SCENARIOS[key]
+    category = scenario.get("category", "other")
+    
+    output_to_evaluate = ai_output.strip()
+    output_type = "Good Output" if use_good_output else "Bad Output"
+    final_input = input_text.strip()
+    
+    # Build evaluation prompt
+    metrics_text = ""
+    for m in selected_metrics:
+        metric = get_metric(m)
+        if metric:
+            metrics_text += f"- **{m}**: {metric.get_definition(language)}\n"
+    
+    evaluation_prompt = f"""You are an expert AI evaluator. Evaluate the following AI-generated output against the input and metrics provided.
+
+## Input:
+{final_input}
+
+## AI Output to Evaluate:
+{output_to_evaluate}
+
+## Metrics to Score (1-5 scale):
+{metrics_text}
+
+## Scoring Scale:
+- 1 = Very poor (fails completely)
+- 2 = Poor (major issues)
+- 3 = Acceptable (some issues)
+- 4 = Good (minor issues)
+- 5 = Excellent (meets all criteria)
+
+## Instructions:
+1. Score each metric on a 1-5 scale
+2. Provide specific rationale for each score with evidence from the text
+3. Flag any RAI (Responsible AI) concerns
+4. Give an overall recommendation: PASS, FAIL, or NEEDS_REVIEW
+
+## Output Format:
+Provide your evaluation in the following JSON format:
+```json
+{{
+  "scores": {{
+    "<metric_name>": {{"score": <1-5>, "rationale": "<explanation>"}}
+  }},
+  "overall_score": <weighted_average>,
+  "rai_concerns": ["<list any concerns>"],
+  "recommendation": "PASS|FAIL|NEEDS_REVIEW",
+  "summary": "<brief overall assessment>"
+}}
+```"""
+
+    # Run LLM evaluation
+    logger.info("Calling LLM for evaluation...")
+    try:
+        llm = LLMClient()
+        evaluation_result = llm.chat_completion(
+            messages=[
+                {"role": "system", "content": "You are an expert AI evaluation assistant. Provide thorough, fair, and evidence-based evaluations."},
+                {"role": "user", "content": evaluation_prompt}
+            ],
+            temperature=0.3,
+            max_tokens=2000
+        )
+        logger.info("LLM evaluation complete")
+    except Exception as e:
+        logger.error(f"LLM call failed: {str(e)}")
+        evaluation_result = f"Error calling LLM: {str(e)}\n\nPlease check your Azure OpenAI configuration."
+    
+    # Run code-based metrics
+    logger.info("Running code-based metrics...")
+    code_metrics_results = run_code_metrics_simulation(category, final_input, output_to_evaluate)
+    logger.info("Code metrics complete")
+    
+    status = f"✅ Evaluation complete!\n- Scenario: {scenario['name']}\n- Output Type: {output_type}\n- Metrics evaluated: {len(selected_metrics)}"
+    
+    return status, evaluation_prompt, evaluation_result, code_metrics_results
+
+
+def run_code_metrics_simulation(category: str, input_text: str, output_text: str) -> str:
+    """Run code-based metrics for simulation"""
+    results = []
+    results.append("# Code-Based Metrics Results\n")
+    results.append("These metrics are computed programmatically using open-source libraries.\n")
+    
+    try:
+        # Always compute readability
+        import textstat
+        results.append("## 📊 Readability Metrics (textstat)\n")
+        results.append(f"- **Flesch Reading Ease**: {textstat.flesch_reading_ease(output_text):.1f}")
+        results.append(f"  - 90-100: Very Easy | 60-70: Standard | 0-30: Very Difficult")
+        results.append(f"- **Flesch-Kincaid Grade**: {textstat.flesch_kincaid_grade(output_text):.1f}")
+        results.append(f"- **SMOG Index**: {textstat.smog_index(output_text):.1f}")
+        results.append(f"- **Automated Readability Index**: {textstat.automated_readability_index(output_text):.1f}")
+        results.append(f"- **Word Count**: {textstat.lexicon_count(output_text)}")
+        results.append(f"- **Sentence Count**: {textstat.sentence_count(output_text)}")
+        results.append("")
+    except ImportError:
+        results.append("⚠️ textstat not installed. Run: pip install textstat\n")
+    except Exception as e:
+        results.append(f"⚠️ Readability computation error: {str(e)}\n")
+    
+    # ROUGE for summarization
+    if category == "summarization":
+        try:
+            from rouge_score import rouge_scorer
+            scorer = rouge_scorer.RougeScorer(['rouge1', 'rouge2', 'rougeL'], use_stemmer=True)
+            scores = scorer.score(input_text, output_text)
+            
+            results.append("## 📊 ROUGE Scores (rouge-score)\n")
+            results.append(f"- **ROUGE-1 F1**: {scores['rouge1'].fmeasure:.3f}")
+            results.append(f"- **ROUGE-2 F1**: {scores['rouge2'].fmeasure:.3f}")
+            results.append(f"- **ROUGE-L F1**: {scores['rougeL'].fmeasure:.3f}")
+            results.append("  - Higher scores indicate better overlap with source")
+            results.append("")
+        except ImportError:
+            results.append("⚠️ rouge-score not installed. Run: pip install rouge-score\n")
+        except Exception as e:
+            results.append(f"⚠️ ROUGE computation error: {str(e)}\n")
+    
+    # BLEU for translation
+    if category == "translation":
+        try:
+            import sacrebleu
+            # BLEU expects reference as list
+            bleu = sacrebleu.sentence_bleu(output_text, [input_text])
+            
+            results.append("## 📊 BLEU Score (sacrebleu)\n")
+            results.append(f"- **BLEU Score**: {bleu.score:.2f}")
+            results.append("  - Higher scores indicate better translation quality")
+            results.append(f"- **Brevity Penalty**: {bleu.bp:.3f}")
+            results.append("")
+        except ImportError:
+            results.append("⚠️ sacrebleu not installed. Run: pip install sacrebleu\n")
+        except Exception as e:
+            results.append(f"⚠️ BLEU computation error: {str(e)}\n")
+    
+    # Fuzzy string matching
+    try:
+        from rapidfuzz import fuzz
+        results.append("## 📊 Fuzzy Matching (rapidfuzz)\n")
+        results.append(f"- **Ratio**: {fuzz.ratio(input_text[:500], output_text[:500]):.1f}%")
+        results.append(f"- **Partial Ratio**: {fuzz.partial_ratio(input_text[:500], output_text[:500]):.1f}%")
+        results.append(f"- **Token Sort Ratio**: {fuzz.token_sort_ratio(input_text[:500], output_text[:500]):.1f}%")
+        results.append("  - Higher ratios indicate more similarity")
+        results.append("")
+    except ImportError:
+        results.append("⚠️ rapidfuzz not installed. Run: pip install rapidfuzz\n")
+    except Exception as e:
+        results.append(f"⚠️ Fuzzy matching error: {str(e)}\n")
+    
+    # BERTScore SKIPPED - too slow (loads ~400MB model)
+    results.append("## 📊 BERTScore\n")
+    results.append("⏭️ **Skipped** - BERTScore requires loading a large model (~400MB) and takes 30+ seconds.")
+    results.append("  - To enable, uncomment BERTScore section in app.py")
+    results.append("")
+    
+    return "\n".join(results)
+
+
 def create_app() -> gr.Blocks:
     """Create the Gradio application"""
     
@@ -908,6 +1382,118 @@ def create_app() -> gr.Blocks:
                             language="python",
                             lines=30
                         )
+            
+            # Tab 5: Simulation (linked to Feature Definition)
+            with gr.Tab("🧪 Simulation") as sim_tab:
+                sim_notice = gr.Markdown("""
+                ### ⚠️ Simulation Not Available
+                
+                **Simulation is only available for these feature categories:**
+                - 📰 **Summarization** (Summarize News, Summarize Email Thread, Summarize Document)
+                - 📧 **Auto Reply** (Auto-Reply Email, Auto-Reply Message)
+                - 🌍 **Translation** (Translate Document)
+                
+                👉 **Go to Feature Definition tab** and select a feature from one of these groups, then return here.
+                """, visible=True)
+                
+                with gr.Column(visible=False) as sim_content:
+                    gr.Markdown("""
+                    ### 🎯 Test Your Feature End-to-End
+                    
+                    **This simulation is linked to your Feature Definition selection.**
+                    
+                    **Workflow:**
+                    1. **Enter your input** - Provide the source content (REQUIRED)
+                    2. **Generate AI Outputs** - Creates BOTH good and bad examples for comparison
+                    3. **Select which to evaluate** - Choose Good or Bad output
+                    4. **Evaluate** - Run LLM-based and code-based metrics
+                    """)
+                    
+                    # Hidden field to store the scenario key (linked from Feature Definition)
+                    sim_scenario = gr.Textbox(visible=False, value="")
+                    
+                    with gr.Row():
+                        with gr.Column(scale=1):
+                            sim_linked_info = gr.Markdown("**📋 Scenario:** Not selected")
+                            
+                            sim_description = gr.Textbox(
+                                label="📝 Scenario Description",
+                                lines=2,
+                                interactive=False
+                            )
+                            
+                            sim_input = gr.Textbox(
+                                label="📥 Input / Source Content (REQUIRED)",
+                                lines=8,
+                                info="Enter the content for the AI to process",
+                                placeholder="Enter your input here before generating outputs..."
+                            )
+                            
+                            sim_metrics = gr.CheckboxGroup(
+                                label="📊 Metrics to Evaluate",
+                                choices=get_all_metrics_choices(),
+                                value=["faithfulness", "fluency", "safety"]
+                            )
+                            
+                            sim_language = gr.Dropdown(
+                                label="🌐 Evaluation Language",
+                                choices=[("English", "en"), ("Spanish", "es"), ("Chinese (Simplified)", "zh-Hans")],
+                                value="en"
+                            )
+                        
+                        with gr.Column(scale=1):
+                            gr.Markdown("### 🎮 Actions")
+                            
+                            sim_generate_btn = gr.Button("🤖 Generate Good & Bad Outputs", variant="primary", size="lg")
+                            
+                            sim_status = gr.Markdown("")
+                            
+                            gr.Markdown("---")
+                            gr.Markdown("### 📤 Generated Outputs")
+                            
+                            sim_good_output = gr.Textbox(
+                                label="✅ Good Output (AI Generated)",
+                                lines=6,
+                                interactive=False,
+                                info="High-quality output for evaluation"
+                            )
+                            
+                            sim_bad_output = gr.Textbox(
+                                label="❌ Bad Output (AI Generated)", 
+                                lines=6,
+                                interactive=False,
+                                info="Intentionally flawed output for comparison"
+                            )
+                            
+                            gr.Markdown("---")
+                            
+                            sim_use_good = gr.Radio(
+                                label="Select output to evaluate:",
+                                choices=[("✅ Evaluate GOOD Output", True), ("❌ Evaluate BAD Output", False)],
+                                value=True,
+                                info="Choose which output to run evaluation on"
+                            )
+                            
+                            sim_run_btn = gr.Button("📊 Evaluate Selected Output", variant="secondary", size="lg")
+                    
+                    gr.Markdown("---")
+                    
+                    with gr.Tabs():
+                        with gr.Tab("📋 Evaluation Prompt"):
+                            sim_prompt_output = gr.Textbox(
+                                label="Evaluation Prompt Sent to LLM",
+                                lines=15
+                            )
+                        
+                        with gr.Tab("🤖 LLM Evaluation Results"):
+                            sim_llm_output = gr.Markdown(
+                                label="LLM Evaluation Output"
+                            )
+                        
+                        with gr.Tab("📊 Code Metrics Results"):
+                            sim_code_output = gr.Markdown(
+                                label="Code-Based Metrics"
+                            )
         
         # --- Event handlers ---
         
@@ -984,13 +1570,111 @@ def create_app() -> gr.Blocks:
             ],
             outputs=[output_prompt, metric_defs_output, suggested_metrics_output, used_metrics_output, output_json, code_metrics_output, status_message]
         )
+        
+        # --- Simulation Tab Event Handlers ---
+        
+        # Supported simulation categories
+        SIMULATION_SUPPORTED_CATEGORIES = ["summarization", "auto_reply", "translation"]
+        
+        # Category to scenario mapping
+        CATEGORY_TO_SCENARIO = {
+            "summarization": "summarization",
+            "auto_reply": "auto_reply",
+            "translation": "translation"
+        }
+        
+        def update_simulation_for_category(cat: str) -> tuple:
+            """Update simulation tab based on selected category"""
+            logger.info(f"Category changed to: {cat}")
+            
+            if cat in SIMULATION_SUPPORTED_CATEGORIES:
+                # Show simulation content, hide notice
+                scenario_key = CATEGORY_TO_SCENARIO[cat]
+                scenario = SIMULATION_SCENARIOS.get(scenario_key, {})
+                scenario_name = scenario.get("name", scenario_key)
+                description = scenario.get("description", "")
+                metrics = scenario.get("metrics", ["faithfulness", "fluency", "safety"])
+                
+                # Format the full scenario choice string
+                scenario_choice = f"{scenario_name} ({scenario_key})"
+                info_text = f"**📋 Linked Scenario:** {scenario_name}"
+                
+                logger.info(f"Simulation enabled for category: {cat} → scenario: {scenario_key}")
+                
+                return (
+                    gr.update(visible=False),  # sim_notice
+                    gr.update(visible=True),   # sim_content
+                    scenario_choice,           # sim_scenario (hidden)
+                    info_text,                 # sim_linked_info
+                    description,               # sim_description
+                    metrics,                   # sim_metrics
+                    "",                        # sim_input (clear)
+                    "",                        # sim_good_output (clear)
+                    "",                        # sim_bad_output (clear)
+                    "",                        # sim_status (clear)
+                )
+            else:
+                # Hide simulation content, show notice
+                logger.info(f"Simulation not available for category: {cat}")
+                return (
+                    gr.update(visible=True),   # sim_notice
+                    gr.update(visible=False),  # sim_content
+                    "",                        # sim_scenario
+                    "**📋 Scenario:** Not available for this category",
+                    "",                        # sim_description
+                    [],                        # sim_metrics
+                    "",                        # sim_input
+                    "",                        # sim_good_output
+                    "",                        # sim_bad_output
+                    "",                        # sim_status
+                )
+        
+        # Link category dropdown to simulation tab
+        category.change(
+            fn=update_simulation_for_category,
+            inputs=[category],
+            outputs=[
+                sim_notice, sim_content, sim_scenario, sim_linked_info,
+                sim_description, sim_metrics, sim_input,
+                sim_good_output, sim_bad_output, sim_status
+            ]
+        )
+        
+        # Generate BOTH good and bad AI outputs
+        sim_generate_btn.click(
+            fn=generate_ai_output_for_scenario,
+            inputs=[sim_scenario, sim_input],
+            outputs=[sim_status, sim_good_output, sim_bad_output]
+        )
+        
+        # Run simulation/evaluation on selected output
+        def run_evaluation_on_selected(
+            scenario_choice: str,
+            input_text: str,
+            good_output: str,
+            bad_output: str,
+            selected_metrics: List[str],
+            use_good: bool,
+            language: str
+        ) -> tuple:
+            """Run evaluation on the selected output (good or bad)"""
+            output_to_evaluate = good_output if use_good else bad_output
+            return run_simulation(scenario_choice, input_text, output_to_evaluate, selected_metrics, use_good, language)
+        
+        sim_run_btn.click(
+            fn=run_evaluation_on_selected,
+            inputs=[sim_scenario, sim_input, sim_good_output, sim_bad_output, sim_metrics, sim_use_good, sim_language],
+            outputs=[sim_status, sim_prompt_output, sim_llm_output, sim_code_output]
+        )
     
     return app
 
 
 def main():
     """Launch the application"""
+    logger.info("Starting MetaFeature Orchestrator...")
     app = create_app()
+    logger.info("App created, launching on http://127.0.0.1:7860")
     app.launch(
         server_name="127.0.0.1",
         server_port=7860,
