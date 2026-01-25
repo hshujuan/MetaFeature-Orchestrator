@@ -3,8 +3,17 @@ gradio>=4.0.0
 pydantic>=2.0.0
 openai>=1.0.0
 python-dotenv>=1.0.0
+httpx>=0.25.0
 
-# Optional: for development
-# pytest
-# black
-# ruff
+# Code-based evaluation metrics
+rouge-score>=0.1.2      # ROUGE metrics for summarization
+sacrebleu>=2.0.0        # BLEU, chrF, TER for translation
+bert-score>=0.3.0       # Semantic similarity using BERT
+textstat>=0.7.0         # Readability metrics (Flesch, etc.)
+rapidfuzz>=3.0.0        # Fuzzy string matching
+evaluate>=0.4.0         # HuggingFace unified metrics API
+
+# Optional: Development tools
+# pytest>=7.0.0
+# black>=23.0.0
+# ruff>=0.1.0

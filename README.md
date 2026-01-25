@@ -17,12 +17,14 @@ MetaFeature-Orchestrator is an intelligent evaluation prompt generator that crea
 
 ## Features
 
-- 📊 **14 Built-in Metrics**: faithfulness, coverage, relevance, tone, fluency, brevity, safety, privacy, groundedness, format_compliance, accuracy, coherence, creativity, prompt_adherence
-- 🌍 **Multi-language Support**: English, Chinese (Simplified), Japanese, Spanish, French
-- 🛡️ **RAI Checks**: Safety, privacy, fairness, transparency constraints
-- ⚡ **Quick Start Templates**: Pre-configured features for Summarization, Auto Reply, Translation, Classification
+- 📊 **20+ Built-in Metrics**: faithfulness, coverage, relevance, tone, fluency, brevity, safety, privacy, groundedness, format_compliance, accuracy, coherence, creativity, prompt_adherence, visual_accuracy, image_quality, anatomical_correctness, and more
+- 🌍 **Multi-language Support**: English, Chinese (Simplified), Japanese, Spanish, French, German, Portuguese, Korean
+- 🛡️ **RAI Checks**: Safety, privacy, fairness, transparency constraints with automatic injection
+- ⚡ **Quick Start Templates**: Pre-configured features for Summarization, Auto Reply, Translation, Classification, Image Understanding, Image Generation, Image Editing, and Image Safety
 - 💾 **SQLite Persistence**: Store features, templates, and evaluation runs
 - 🎨 **Modern Web UI**: Tabbed Gradio interface with real-time feedback
+- 🖼️ **Image Generation**: DALL-E 3 integration for testing image-related AI features
+- 📈 **Code-Based Metrics**: Programmatic evaluation using ROUGE, BLEU, BERTScore, and more
 
 ## Project Structure
 
@@ -30,17 +32,20 @@ MetaFeature-Orchestrator is an intelligent evaluation prompt generator that crea
 MetaFeature-Orchestrator/
 ├── src/
 │   ├── core/                    # Main application modules
-│   │   ├── agent.py             # FeaturePromptWriterAgent
+│   │   ├── agent.py             # FeaturePromptWriterAgent - core orchestration
 │   │   ├── app.py               # Gradio web application
+│   │   ├── code_metrics.py      # Programmatic metrics (ROUGE, BLEU, BERTScore)
 │   │   ├── database.py          # SQLite persistence
+│   │   ├── image_generator.py   # DALL-E 3 image generation
 │   │   ├── llm_client.py        # Azure OpenAI / OpenAI client
-│   │   ├── metrics_registry.py  # 14 metrics with i18n
-│   │   ├── prompt_templates.py  # Category-specific templates
-│   │   ├── schemas.py           # Pydantic models
+│   │   ├── metrics_registry.py  # 20+ metrics with i18n support
+│   │   ├── prompt_templates.py  # Category-specific templates with bilingual support
+│   │   ├── schemas.py           # Pydantic models and dataclasses
 │   │   └── __init__.py
+│   ├── openai_service.py        # Direct Azure OpenAI service
 │   ├── data/                    # SQLite database
 │   └── __init__.py
-├── archive/                     # Deprecated files (for reference)
+├── TechnicalDocs/               # Architecture and technical documentation
 ├── tests/
 │   └── test_openai.py           # Connection tests
 ├── run.py                       # Entry point
@@ -145,6 +150,8 @@ print(result.evaluation_prompt)
 
 ## Available Metrics
 
+### Text Metrics
+
 | Metric | Description | Categories |
 |--------|-------------|------------|
 | `faithfulness` | No hallucination - output matches input facts | summarization, translation, auto_reply |
@@ -159,13 +166,46 @@ print(result.evaluation_prompt)
 | `accuracy` | Factually correct | translation, classification |
 | `coherence` | Logical flow | content_generation |
 | `creativity` | Novel and engaging | content_generation |
+| `prompt_adherence` | Follows instructions precisely | content_generation, assistant |
+
+### Image Metrics
+
+| Metric | Description | Categories |
+|--------|-------------|------------|
+| `visual_accuracy` | Image matches prompt description | image_generation, image_editing |
+| `style_consistency` | Adheres to requested artistic style | image_generation |
+| `image_quality` | Free of artifacts, proper resolution | image_generation, image_editing |
+| `anatomical_correctness` | Correct anatomy for humans/animals | image_generation |
+| `object_removal_seamless` | No visible traces after removal | image_editing |
+| `caption_accuracy` | Caption describes image correctly | image_understanding |
+| `image_safety` | No harmful/inappropriate content | image_generation, image_editing |
+
+### Code-Based Metrics
+
+| Metric | Package | Use Case |
+|--------|---------|----------|
+| ROUGE | `rouge-score` | Summarization (n-gram overlap) |
+| BLEU | `sacrebleu` | Translation (n-gram precision) |
+| BERTScore | `bert-score` | Semantic similarity |
+| Readability | `textstat` | Fluency (Flesch score, grade level) |
+| Fuzzy Match | `rapidfuzz` | Approximate string matching |
 
 ## Dependencies
 
+### Core
 - `gradio>=4.0.0` - Web UI framework
 - `pydantic>=2.0.0` - Data validation
 - `openai>=1.0.0` - OpenAI/Azure OpenAI client
 - `python-dotenv>=1.0.0` - Environment variable management
+- `httpx>=0.25.0` - HTTP client for image generation
+
+### Code-Based Evaluation
+- `rouge-score>=0.1.2` - ROUGE metrics for summarization
+- `sacrebleu>=2.0.0` - BLEU, chrF, TER for translation
+- `bert-score>=0.3.0` - Semantic similarity using BERT
+- `textstat>=0.7.0` - Readability metrics
+- `rapidfuzz>=3.0.0` - Fuzzy string matching
+- `evaluate>=0.4.0` - HuggingFace unified metrics API
 
 ## License
 
