@@ -6,8 +6,6 @@
 
 MetaFeature-Orchestrator is an intelligent evaluation prompt generator that creates comprehensive, structured evaluation prompts for AI features. It uses a metric-first approach with built-in Responsible AI (RAI) checks and combines LLM-based evaluation with deterministic code-based metrics.
 
-> **Reproducibility**: All LLM calls use `temperature=0` for deterministic outputs. Code-based metrics (ROUGE, BLEU, BERTScore) provide fully reproducible evaluation scores.
-
 ### Design Principles
 
 - **Metric-first**: Define evaluation criteria before generation
