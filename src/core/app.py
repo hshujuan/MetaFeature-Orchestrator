@@ -778,7 +778,7 @@ def generate_ai_output_for_scenario(scenario_choice: str, custom_input: str) -> 
                 {"role": "system", "content": good_system_prompt},
                 {"role": "user", "content": f"{task_prompt}\n\n{input_text}"}
             ],
-            temperature=0.3,  # Lower temperature for more accurate output
+            temperature=0.0,  # Zero temperature for reproducible output
             max_tokens=1000
         )
         
@@ -790,7 +790,7 @@ def generate_ai_output_for_scenario(scenario_choice: str, custom_input: str) -> 
                 {"role": "system", "content": bad_system_prompt},
                 {"role": "user", "content": f"{task_prompt}\n\n{input_text}"}
             ],
-            temperature=0.9,  # Higher temperature for more variation
+            temperature=0.0,  # Zero temperature for reproducible output
             max_tokens=1000
         )
         
@@ -993,7 +993,7 @@ Provide your evaluation in the following JSON format:
                 {"role": "system", "content": "You are an expert AI evaluation assistant. Provide thorough, fair, and evidence-based evaluations."},
                 {"role": "user", "content": evaluation_prompt}
             ],
-            temperature=0.3,
+            temperature=0.0,  # Zero temperature for reproducible evaluation
             max_tokens=2000
         )
         logger.info("LLM evaluation complete")

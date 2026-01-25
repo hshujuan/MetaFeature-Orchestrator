@@ -29,7 +29,9 @@
 
 ## 1. What is MetaFeature-Orchestrator?
 
-**MetaFeature-Orchestrator** is an intelligent evaluation prompt generator that creates comprehensive, hallucination-free evaluation prompts for AI features. It uses a **metric-first approach** with built-in **Responsible AI (RAI) checks** to ensure consistent, reproducible evaluations.
+**MetaFeature-Orchestrator** is an intelligent evaluation prompt generator that creates comprehensive, structured evaluation prompts for AI features. It uses a **metric-first approach** with built-in **Responsible AI (RAI) checks** and combines LLM-based evaluation with deterministic code-based metrics.
+
+> **Reproducibility**: All LLM calls use `temperature=0` for deterministic outputs. Code-based metrics (ROUGE, BLEU, BERTScore) provide fully reproducible evaluation scores.
 
 ### Core Design Principles
 
@@ -38,11 +40,11 @@
 │                        DESIGN PRINCIPLES                                │
 ├─────────────────┬───────────────────────────────────────────────────────┤
 │ Metric-first    │ Define evaluation criteria BEFORE prompt generation  │
-│ Grounded        │ No hallucinated judgments - clear rubrics/thresholds │
+│ Grounded        │ Clear rubrics and thresholds guide evaluation        │
 │ Agent-based     │ Intelligent prompt synthesis, not hard-coded templates│
 │ RAI by Design   │ Safety, privacy, fairness built into every evaluation│
 │ Human-reviewable│ All outputs are transparent and auditable            │
-│ Extensible      │ i18n for 5 languages, customizable metrics           │
+│ Extensible      │ i18n for 8 languages, customizable metrics           │
 └─────────────────┴───────────────────────────────────────────────────────┘
 ```
 
@@ -143,7 +145,7 @@ if __name__ == "__main__":
 
 ### 3.2 Agent Layer (`FeaturePromptWriterAgent`)
 
-The agent is the **central orchestrator** for generating evaluation prompts. It is stateless and reproducible.
+The agent is the **central orchestrator** for generating evaluation prompts. It is stateless—same input produces same output structure (with `temperature=0` for deterministic LLM calls).
 
 ```mermaid
 flowchart LR
@@ -906,8 +908,8 @@ sequenceDiagram
 ## 5. Key Architectural Decisions
 
 ### 5.1 Stateless Agent Design
-The `FeaturePromptWriterAgent` is deliberately **stateless**: same input always produces same output. This enables:
-- Reproducible evaluations
+The `FeaturePromptWriterAgent` is deliberately **stateless**: same input always produces same output structure. Combined with `temperature=0` LLM calls, this enables:
+- Deterministic prompt generation
 - Easy testing
 - No side effects
 

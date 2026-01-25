@@ -60,7 +60,7 @@ class LLMClient:
         self,
         messages: List[Dict[str, str]],
         model: Optional[str] = None,
-        temperature: float = 0.7,
+        temperature: float = 0.0,
         max_tokens: int = 4000,
         **kwargs
     ) -> str:
@@ -93,7 +93,7 @@ class LLMClient:
         self,
         system_prompt: str,
         user_request: str,
-        temperature: float = 0.7
+        temperature: float = 0.0
     ) -> str:
         """
         Generate an evaluation prompt using the LLM.
@@ -137,7 +137,7 @@ def get_deployment_name() -> str:
 def chat_completion(
     messages: List[Dict[str, str]],
     model: Optional[str] = None,
-    temperature: float = 0.7,
+    temperature: float = 0.0,
     max_tokens: int = 4000
 ) -> str:
     """Convenience function for chat completion"""
