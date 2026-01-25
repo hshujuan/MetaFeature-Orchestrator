@@ -1,4 +1,4 @@
-"""
+﻿"""
 MetaFeature Orchestrator - Gradio Application
 Automatically generates high-quality evaluation prompts with metric-first design.
 """
@@ -907,12 +907,14 @@ def run_simulation(
     ai_output: str,
     selected_metrics: List[str],
     use_good_output: bool,
-    language: str
+    language: str,
+    generated_prompt: str = ""
 ) -> tuple:
-    """Run evaluation on the provided AI output"""
+    """Run evaluation on the provided AI output using the generated prompt from the Generate tab"""
     logger.info(f"Running evaluation for scenario: {scenario_choice}")
     logger.info(f"Selected metrics: {selected_metrics}")
     logger.info(f"Evaluating {'GOOD' if use_good_output else 'BAD'} output, Language: {language}")
+    logger.info(f"Using generated prompt: {bool(generated_prompt)}")
     
     if not scenario_choice:
         return "❌ Please select a scenario first.", "", "", ""
@@ -922,6 +924,9 @@ def run_simulation(
     
     if not ai_output or not ai_output.strip():
         return "❌ No output to evaluate. Please generate outputs first by clicking 'Generate Good & Bad Outputs'.", "", "", ""
+    
+    if not generated_prompt or not generated_prompt.strip():
+        return "❌ No evaluation prompt found. Please go to the Generate tab and generate a prompt first, then return here to run the simulation.", "", "", ""
     
     # Extract scenario key
     key = scenario_choice.split("(")[-1].rstrip(")")
@@ -935,33 +940,33 @@ def run_simulation(
     output_type = "Good Output" if use_good_output else "Bad Output"
     final_input = input_text.strip()
     
-    # Build evaluation prompt
-    metrics_text = ""
-    for m in selected_metrics:
-        metric = get_metric(m)
-        if metric:
-            metrics_text += f"- **{m}**: {metric.get_definition(language)}\n"
-    
-    evaluation_prompt = f"""You are an expert AI evaluator. Evaluate the following AI-generated output against the input and metrics provided.
+    # Use the generated prompt from the Generate tab, replacing placeholders with actual content
+    # The generated prompt should be used as the base evaluation criteria
+    evaluation_prompt = f"""## Generated Evaluation Prompt (from Generate tab):
+{generated_prompt.strip()}
 
-## Input:
+---
+
+## Content to Evaluate:
+
+### Input:
 {final_input}
 
-## AI Output to Evaluate:
+### AI Output ({output_type}):
 {output_to_evaluate}
 
-## Metrics to Score (1-5 scale):
-{metrics_text}
-
-## Scoring Scale:
-- 1 = Very poor (fails completely)
-- 2 = Poor (major issues)
-- 3 = Acceptable (some issues)
-- 4 = Good (minor issues)
-- 5 = Excellent (meets all criteria)
+---
 
 ## Instructions:
-1. Score each metric on a 1-5 scale
+Using the evaluation criteria defined in the Generated Evaluation Prompt above, evaluate the AI Output.
+
+1. Score each metric on a 1-5 scale:
+   - 1 = Very poor (fails completely)
+   - 2 = Poor (major issues)
+   - 3 = Acceptable (some issues)
+   - 4 = Good (minor issues)
+   - 5 = Excellent (meets all criteria)
+
 2. Provide specific rationale for each score with evidence from the text
 3. Flag any RAI (Responsible AI) concerns
 4. Give an overall recommendation: PASS, FAIL, or NEEDS_REVIEW
@@ -1078,12 +1083,6 @@ def run_code_metrics_simulation(category: str, input_text: str, output_text: str
         results.append("⚠️ rapidfuzz not installed. Run: pip install rapidfuzz\n")
     except Exception as e:
         results.append(f"⚠️ Fuzzy matching error: {str(e)}\n")
-    
-    # BERTScore SKIPPED - too slow (loads ~400MB model)
-    results.append("## 📊 BERTScore\n")
-    results.append("⏭️ **Skipped** - BERTScore requires loading a large model (~400MB) and takes 30+ seconds.")
-    results.append("  - To enable, uncomment BERTScore section in app.py")
-    results.append("")
     
     return "\n".join(results)
 
@@ -1385,28 +1384,41 @@ def create_app() -> gr.Blocks:
             
             # Tab 5: Simulation (linked to Feature Definition)
             with gr.Tab("🧪 Simulation") as sim_tab:
-                sim_notice = gr.Markdown("""
-                ### ⚠️ Simulation Not Available
+                # State to store the generated evaluation prompt
+                sim_stored_prompt = gr.State(value="")
+                
+                # Notice when category doesn't support simulation
+                sim_category_notice = gr.Markdown("""
+                ### ⚠️ Simulation Not Available for This Category
                 
                 **Simulation is only available for these feature categories:**
                 - 📰 **Summarization** (Summarize News, Summarize Email Thread, Summarize Document)
                 - 📧 **Auto Reply** (Auto-Reply Email, Auto-Reply Message)
                 - 🌍 **Translation** (Translate Document)
                 
-                👉 **Go to Feature Definition tab** and select a feature from one of these groups, then return here.
+                👉 **Go to Feature Definition tab** and select a feature from one of these groups.
                 """, visible=True)
+                
+                # Notice when prompt hasn't been generated yet
+                sim_prompt_notice = gr.Markdown("""
+                ### ⚠️ Generate Evaluation Prompt First
+                
+                **You need to generate an evaluation prompt before running simulation.**
+                
+                👉 **Go to the Generate tab** and click "Generate Evaluation Prompt" button, then return here.
+                
+                The simulation will use your generated prompt to evaluate the AI outputs.
+                """, visible=False)
                 
                 with gr.Column(visible=False) as sim_content:
                     gr.Markdown("""
                     ### 🎯 Test Your Feature End-to-End
                     
-                    **This simulation is linked to your Feature Definition selection.**
-                    
                     **Workflow:**
                     1. **Enter your input** - Provide the source content (REQUIRED)
                     2. **Generate AI Outputs** - Creates BOTH good and bad examples for comparison
                     3. **Select which to evaluate** - Choose Good or Bad output
-                    4. **Evaluate** - Run LLM-based and code-based metrics
+                    4. **Evaluate** - Uses your generated prompt from the Generate tab
                     """)
                     
                     # Hidden field to store the scenario key (linked from Feature Definition)
@@ -1479,9 +1491,17 @@ def create_app() -> gr.Blocks:
                     gr.Markdown("---")
                     
                     with gr.Tabs():
-                        with gr.Tab("📋 Evaluation Prompt"):
+                        with gr.Tab("📝 Generated Prompt (from Generate Tab)"):
+                            sim_generated_prompt_display = gr.Textbox(
+                                label="✅ Evaluation Prompt (Generated in Generate Tab)",
+                                lines=12,
+                                interactive=False,
+                                info="This prompt will be used to evaluate the AI outputs"
+                            )
+                        
+                        with gr.Tab("📋 Full Evaluation Prompt Sent to LLM"):
                             sim_prompt_output = gr.Textbox(
-                                label="Evaluation Prompt Sent to LLM",
+                                label="Complete prompt sent to LLM (includes generated prompt + content to evaluate)",
                                 lines=15
                             )
                         
@@ -1557,9 +1577,59 @@ def create_app() -> gr.Blocks:
             outputs=[language]
         )
         
-        # Generate button
+        # Generate button - also update the simulation tab's generated prompt display and enable simulation
+        def generate_and_sync_to_simulation(
+            feature_name_val, feature_description_val, category_val,
+            input_format_val, output_format_val,
+            typical_input_val, expected_output_val,
+            selected_metrics_val, additional_context_val,
+            check_safety_val, check_privacy_val, check_fairness_val, check_transparency_val,
+            rai_notes_val, language_val
+        ):
+            """Generate prompt and return extra copy for simulation tab, also update visibility"""
+            result = generate_prompt(
+                feature_name_val, feature_description_val, category_val,
+                input_format_val, output_format_val,
+                typical_input_val, expected_output_val,
+                selected_metrics_val, additional_context_val,
+                check_safety_val, check_privacy_val, check_fairness_val, check_transparency_val,
+                rai_notes_val, language_val
+            )
+            # result is (evaluation_prompt, metric_defs, suggested_str, metrics_used_str, json_spec, code_metrics_sample, status_message)
+            evaluation_prompt = result[0]
+            
+            # Check if category supports simulation
+            cat = category_val.lower() if category_val else ""
+            category_supports_sim = cat in SIMULATION_SUPPORTED_CATEGORIES
+            
+            # If prompt was generated successfully and category supports simulation
+            if evaluation_prompt and evaluation_prompt.strip() and category_supports_sim:
+                # Show simulation content, hide both notices
+                return result + (
+                    evaluation_prompt,           # sim_generated_prompt_display
+                    gr.update(visible=False),    # sim_category_notice - hide
+                    gr.update(visible=False),    # sim_prompt_notice - hide
+                    gr.update(visible=True),     # sim_content - show
+                )
+            elif evaluation_prompt and evaluation_prompt.strip() and not category_supports_sim:
+                # Prompt generated but category doesn't support simulation
+                return result + (
+                    evaluation_prompt,           # sim_generated_prompt_display
+                    gr.update(visible=True),     # sim_category_notice - show
+                    gr.update(visible=False),    # sim_prompt_notice - hide
+                    gr.update(visible=False),    # sim_content - hide
+                )
+            else:
+                # No prompt generated
+                return result + (
+                    "",                          # sim_generated_prompt_display
+                    gr.update(),                 # sim_category_notice - no change
+                    gr.update(),                 # sim_prompt_notice - no change
+                    gr.update(),                 # sim_content - no change
+                )
+        
         generate_btn.click(
-            fn=generate_prompt,
+            fn=generate_and_sync_to_simulation,
             inputs=[
                 feature_name, feature_description, category,
                 input_format, output_format,
@@ -1568,7 +1638,7 @@ def create_app() -> gr.Blocks:
                 check_safety, check_privacy, check_fairness, check_transparency,
                 rai_notes, language
             ],
-            outputs=[output_prompt, metric_defs_output, suggested_metrics_output, used_metrics_output, output_json, code_metrics_output, status_message]
+            outputs=[output_prompt, metric_defs_output, suggested_metrics_output, used_metrics_output, output_json, code_metrics_output, status_message, sim_generated_prompt_display, sim_category_notice, sim_prompt_notice, sim_content]
         )
         
         # --- Simulation Tab Event Handlers ---
@@ -1583,12 +1653,13 @@ def create_app() -> gr.Blocks:
             "translation": "translation"
         }
         
-        def update_simulation_for_category(cat: str) -> tuple:
-            """Update simulation tab based on selected category"""
+        def update_simulation_for_category(cat: str, current_prompt: str) -> tuple:
+            """Update simulation tab based on selected category and whether prompt exists"""
             logger.info(f"Category changed to: {cat}")
+            has_prompt = bool(current_prompt and current_prompt.strip())
             
             if cat in SIMULATION_SUPPORTED_CATEGORIES:
-                # Show simulation content, hide notice
+                # Category supports simulation
                 scenario_key = CATEGORY_TO_SCENARIO[cat]
                 scenario = SIMULATION_SCENARIOS.get(scenario_key, {})
                 scenario_name = scenario.get("name", scenario_key)
@@ -1599,26 +1670,45 @@ def create_app() -> gr.Blocks:
                 scenario_choice = f"{scenario_name} ({scenario_key})"
                 info_text = f"**📋 Linked Scenario:** {scenario_name}"
                 
-                logger.info(f"Simulation enabled for category: {cat} → scenario: {scenario_key}")
+                logger.info(f"Simulation enabled for category: {cat} → scenario: {scenario_key}, has_prompt: {has_prompt}")
                 
-                return (
-                    gr.update(visible=False),  # sim_notice
-                    gr.update(visible=True),   # sim_content
-                    scenario_choice,           # sim_scenario (hidden)
-                    info_text,                 # sim_linked_info
-                    description,               # sim_description
-                    metrics,                   # sim_metrics
-                    "",                        # sim_input (clear)
-                    "",                        # sim_good_output (clear)
-                    "",                        # sim_bad_output (clear)
-                    "",                        # sim_status (clear)
-                )
+                if has_prompt:
+                    # Category OK and prompt exists - show simulation content
+                    return (
+                        gr.update(visible=False),  # sim_category_notice - hide
+                        gr.update(visible=False),  # sim_prompt_notice - hide
+                        gr.update(visible=True),   # sim_content - show
+                        scenario_choice,           # sim_scenario (hidden)
+                        info_text,                 # sim_linked_info
+                        description,               # sim_description
+                        metrics,                   # sim_metrics
+                        "",                        # sim_input (clear)
+                        "",                        # sim_good_output (clear)
+                        "",                        # sim_bad_output (clear)
+                        "",                        # sim_status (clear)
+                    )
+                else:
+                    # Category OK but no prompt yet - show prompt notice
+                    return (
+                        gr.update(visible=False),  # sim_category_notice - hide
+                        gr.update(visible=True),   # sim_prompt_notice - show
+                        gr.update(visible=False),  # sim_content - hide
+                        scenario_choice,           # sim_scenario (hidden)
+                        info_text,                 # sim_linked_info
+                        description,               # sim_description
+                        metrics,                   # sim_metrics
+                        "",                        # sim_input (clear)
+                        "",                        # sim_good_output (clear)
+                        "",                        # sim_bad_output (clear)
+                        "",                        # sim_status (clear)
+                    )
             else:
-                # Hide simulation content, show notice
+                # Category doesn't support simulation - show category notice
                 logger.info(f"Simulation not available for category: {cat}")
                 return (
-                    gr.update(visible=True),   # sim_notice
-                    gr.update(visible=False),  # sim_content
+                    gr.update(visible=True),   # sim_category_notice - show
+                    gr.update(visible=False),  # sim_prompt_notice - hide
+                    gr.update(visible=False),  # sim_content - hide
                     "",                        # sim_scenario
                     "**📋 Scenario:** Not available for this category",
                     "",                        # sim_description
@@ -1632,9 +1722,9 @@ def create_app() -> gr.Blocks:
         # Link category dropdown to simulation tab
         category.change(
             fn=update_simulation_for_category,
-            inputs=[category],
+            inputs=[category, output_prompt],
             outputs=[
-                sim_notice, sim_content, sim_scenario, sim_linked_info,
+                sim_category_notice, sim_prompt_notice, sim_content, sim_scenario, sim_linked_info,
                 sim_description, sim_metrics, sim_input,
                 sim_good_output, sim_bad_output, sim_status
             ]
@@ -1655,15 +1745,16 @@ def create_app() -> gr.Blocks:
             bad_output: str,
             selected_metrics: List[str],
             use_good: bool,
-            language: str
+            language: str,
+            generated_prompt: str
         ) -> tuple:
-            """Run evaluation on the selected output (good or bad)"""
+            """Run evaluation on the selected output (good or bad) using the generated prompt"""
             output_to_evaluate = good_output if use_good else bad_output
-            return run_simulation(scenario_choice, input_text, output_to_evaluate, selected_metrics, use_good, language)
+            return run_simulation(scenario_choice, input_text, output_to_evaluate, selected_metrics, use_good, language, generated_prompt)
         
         sim_run_btn.click(
             fn=run_evaluation_on_selected,
-            inputs=[sim_scenario, sim_input, sim_good_output, sim_bad_output, sim_metrics, sim_use_good, sim_language],
+            inputs=[sim_scenario, sim_input, sim_good_output, sim_bad_output, sim_metrics, sim_use_good, sim_language, sim_generated_prompt_display],
             outputs=[sim_status, sim_prompt_output, sim_llm_output, sim_code_output]
         )
     
@@ -1684,3 +1775,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
