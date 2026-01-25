@@ -35,14 +35,16 @@ class FeaturePromptWriterAgent:
     def generate(
         self,
         feature: FeatureSpec | FeatureMetadata,
-        language: Optional[str] = None
+        locale: Optional[str] = None,
+        language: Optional[str] = None  # Legacy parameter
     ) -> PromptOutput:
         """
         Generate an evaluation prompt for the given feature.
         
         Args:
             feature: Feature specification or metadata
-            language: Target language (defaults to first supported)
+            locale: Target locale (e.g., 'en-US', 'zh-CN'). Preferred parameter.
+            language: [Deprecated] Target language. Use locale instead.
             
         Returns:
             PromptOutput with evaluation prompt and metadata
@@ -53,8 +55,18 @@ class FeaturePromptWriterAgent:
         else:
             spec = feature
         
-        # Determine target language
-        lang = language or (spec.languages_supported[0] if spec.languages_supported else "en")
+        # Determine target locale (prefer locale parameter, fall back to language for backward compat)
+        if locale:
+            target_locale = locale
+        elif language:
+            # Legacy: convert language to default locale
+            target_locale = f"{language}-US" if language == "en" else language
+        else:
+            # Use first supported locale from spec
+            target_locale = spec.locales_supported[0] if spec.locales_supported else "en-US"
+        
+        # Extract language from locale for metric definitions
+        lang = target_locale.split("-")[0] if "-" in target_locale else target_locale
         
         # Resolve metrics
         metrics_used, metric_defs, suggested = self._resolve_metrics(
@@ -71,11 +83,11 @@ class FeaturePromptWriterAgent:
             safety_critical=spec.safety_critical
         )
         
-        # Build the evaluation prompt
+        # Build the evaluation prompt (now with full locale support)
         prompt = build_evaluation_prompt(
             feature_name=spec.name,
             category=spec.category,
-            language=lang,
+            locale=target_locale,
             metrics_used=metrics_used,
             metric_defs=metric_defs
         )
@@ -84,7 +96,7 @@ class FeaturePromptWriterAgent:
             feature_name=spec.name,
             group=spec.group,
             category=spec.category,
-            language=lang,
+            locale=target_locale,
             metrics_used=metrics_used,
             metric_definitions=metric_defs,
             suggested_additional_metrics=suggested,
@@ -191,6 +203,10 @@ class FeaturePromptWriterAgent:
     
     def _metadata_to_spec(self, metadata: FeatureMetadata) -> FeatureSpec:
         """Convert FeatureMetadata to FeatureSpec"""
+        # Use new locale field, fall back to legacy language field
+        locales = metadata.supported_locales if metadata.supported_locales != ["en-US"] else \
+                  [f"{lang}-US" if lang == "en" else lang for lang in metadata.supported_languages]
+        
         return FeatureSpec(
             group=metadata.group,
             name=metadata.feature_name,
@@ -198,7 +214,7 @@ class FeaturePromptWriterAgent:
             category=metadata.category,
             input_format=metadata.input_description,
             output_format=metadata.output_description,
-            languages_supported=metadata.supported_languages,
+            locales_supported=locales,
             success_metrics=metadata.success_metrics or [m.name for m in metadata.quality_metrics],
             privacy_sensitive=metadata.responsible_ai.no_pii_leakage,
             safety_critical=metadata.responsible_ai.safety_critical,

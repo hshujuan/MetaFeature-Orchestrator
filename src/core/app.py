@@ -328,44 +328,66 @@ def get_all_metrics_choices() -> List[str]:
     return list(METRICS_REGISTRY.keys())
 
 
-# Location to language mapping
-LOCATION_TO_LANGUAGE = {
-    "US": "en",
-    "GB": "en",
-    "CN": "zh-Hans",
-    "TW": "zh-Hant",
-    "HK": "zh-Hant",
-    "JP": "ja",
-    "KR": "ko",
-    "DE": "de",
-    "FR": "fr",
-    "ES": "es",
-    "MX": "es",
-    "BR": "pt",
-    "IN": "en",  # India - English is common for tech
-    "SA": "ar",
-    "AE": "ar",
-    "ID": "id",
-    "VN": "vi",
-    "TH": "th",
-    "IT": "it",
-    "NL": "nl",
-    "RU": "ru",
-    "PL": "pl",
-    "TR": "tr",
-    "AU": "en",
-    "CA": "en",  # Canada - default to English
-    "GLOBAL": "en",
+# Import locale utilities from prompt_templates
+from .prompt_templates import (
+    SUPPORTED_LOCALES, 
+    get_language, 
+    get_region, 
+    normalize_locale,
+    get_cultural_context,
+    get_tone_guidance,
+    get_privacy_framework
+)
+
+
+def get_locale_choices() -> List[str]:
+    """Get all supported locales as dropdown choices"""
+    return list(SUPPORTED_LOCALES.keys())
+
+
+def get_locale_display_choices() -> List[tuple]:
+    """Get locales with display names for dropdown"""
+    return [(f"{code} - {name}", code) for code, name in SUPPORTED_LOCALES.items()]
+
+
+# Legacy mapping (for backward compatibility)
+LOCATION_TO_LOCALE = {
+    "US": "en-US",
+    "GB": "en-GB",
+    "AU": "en-AU",
+    "IN": "en-IN",
+    "SG": "en-SG",
+    "CA": "en-CA",
+    "CN": "zh-CN",
+    "TW": "zh-TW",
+    "HK": "zh-HK",
+    "JP": "ja-JP",
+    "KR": "ko-KR",
+    "DE": "de-DE",
+    "FR": "fr-FR",
+    "ES": "es-ES",
+    "MX": "es-MX",
+    "AR": "es-AR",
+    "BR": "pt-BR",
+    "PT": "pt-PT",
+    "GLOBAL": "en-US",
 }
 
 
 def get_language_for_location(location: str) -> str:
-    """Get the primary language for a location"""
-    return LOCATION_TO_LANGUAGE.get(location, "en")
+    """[Deprecated] Get the primary language for a location. Use get_locale_for_location instead."""
+    locale = LOCATION_TO_LOCALE.get(location, "en-US")
+    return get_language(locale)
 
 
-def format_metric_definitions(metric_ids: List[str], language: str = "en") -> str:
+def get_locale_for_location(location: str) -> str:
+    """Get the locale code for a location"""
+    return LOCATION_TO_LOCALE.get(location, "en-US")
+
+
+def format_metric_definitions(metric_ids: List[str], locale_or_language: str = "en-US") -> str:
     """Format metric definitions for display"""
+    language = get_language(locale_or_language) if "-" in locale_or_language else locale_or_language
     lines = []
     for m_id in metric_ids:
         metric = get_metric(m_id)

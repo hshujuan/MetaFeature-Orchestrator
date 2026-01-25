@@ -159,7 +159,7 @@ class PromptOutput:
     feature_name: str
     group: str
     category: str
-    language: str
+    locale: str  # Full locale code (e.g., 'en-US', 'zh-CN')
     metrics_used: List[str]
     metric_definitions: Dict[str, Dict[str, Any]]
     suggested_additional_metrics: List[str]
@@ -169,13 +169,18 @@ class PromptOutput:
     def __post_init__(self):
         if self.rai_checks_applied is None:
             self.rai_checks_applied = []
+    
+    @property
+    def language(self) -> str:
+        """Legacy property - extracts language code from locale"""
+        return self.locale.split("-")[0] if "-" in self.locale else self.locale
 
 
 class GeneratedPromptResult(BaseModel):
     """Structured result from evaluation prompt generation"""
     feature_id: str = Field(default="")
     feature_name: str
-    language: str
+    locale: str = Field(default="en-US", description="Full locale code (BCP 47)")
     category: str
     metrics_used: List[str]
     evaluation_prompt: str
@@ -183,6 +188,9 @@ class GeneratedPromptResult(BaseModel):
     rai_checks: List[str] = Field(default_factory=list)
     locale_adaptations: List[str] = Field(default_factory=list)
     suggested_metrics: List[str] = Field(default_factory=list)
+    
+    # Legacy field
+    language: str = Field(default="en", description="[Deprecated] Use locale")
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -191,6 +199,10 @@ class GeneratedPromptResult(BaseModel):
 
 def feature_metadata_to_spec(metadata: FeatureMetadata) -> FeatureSpec:
     """Convert FeatureMetadata (Pydantic) to FeatureSpec (dataclass)"""
+    # Use new locale field, fall back to legacy language field
+    locales = metadata.supported_locales if metadata.supported_locales != ["en-US"] else \
+              [f"{lang}-US" if lang == "en" else lang for lang in metadata.supported_languages]
+    
     return FeatureSpec(
         group=metadata.group,
         name=metadata.feature_name,
@@ -198,7 +210,7 @@ def feature_metadata_to_spec(metadata: FeatureMetadata) -> FeatureSpec:
         category=metadata.category,
         input_format=metadata.input_description,
         output_format=metadata.output_description,
-        languages_supported=metadata.supported_languages,
+        locales_supported=locales,
         success_metrics=metadata.success_metrics or [m.name for m in metadata.quality_metrics],
         privacy_sensitive=metadata.responsible_ai.no_pii_leakage,
         safety_critical=metadata.responsible_ai.safety_critical,
@@ -214,10 +226,5 @@ def spec_to_feature_metadata(spec: FeatureSpec) -> FeatureMetadata:
         category=spec.category,
         input_description=spec.input_format,
         output_description=spec.output_format,
-        supported_languages=spec.languages_supported,
-        success_metrics=spec.success_metrics,
-        responsible_ai=ResponsibleAIConstraints(
-            no_pii_leakage=spec.privacy_sensitive,
-            safety_critical=spec.safety_critical,
-        ),
-    )
+        supported_locales=spec.locales_supported,
+        supported_languages=spec.languages_supported,  # Derived property
