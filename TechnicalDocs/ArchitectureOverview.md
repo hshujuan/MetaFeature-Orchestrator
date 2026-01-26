@@ -371,34 +371,26 @@ flowchart TB
 
 In addition to LLM-based evaluation, the system provides **deterministic, programmatic metrics** using open-source NLP libraries. These enable automated evaluation pipelines with consistent scoring.
 
-```mermaid
-flowchart LR
-    subgraph "Code Metrics Registry"
-        ROUGE[ROUGE<br/>rouge-score]
-        BLEU[BLEU/chrF/TER<br/>sacrebleu]
-        BERT[BERTScore<br/>bert-score]
-        READ[Readability<br/>textstat]
-        FUZZY[Fuzzy Match<br/>rapidfuzz]
-        EVAL[evaluate<br/>HuggingFace]
-    end
-    
-    subgraph "Use Cases"
-        SUM[Summarization]
-        TRANS[Translation]
-        QA[Extraction/QA]
-        GEN[Generation]
-    end
-    
-    ROUGE --> SUM
-    BLEU --> TRANS
-    BERT --> SUM
-    BERT --> TRANS
-    BERT --> GEN
-    READ --> GEN
-    FUZZY --> QA
-    EVAL --> SUM
-    EVAL --> TRANS
 ```
+┌─────────────────────────────────┐     ┌─────────────────────────────────┐
+│     Code Metrics Registry       │     │         Use Cases               │
+│  (Available metric libraries)   │     │   (Where they're applied)       │
+├─────────────────────────────────┤     ├─────────────────────────────────┤
+│  ROUGE     → rouge-score        │────▶│  Summarization                  │
+│  BLEU      → sacrebleu          │────▶│  Translation                    │
+│  BERTScore → bert-score         │────▶│  Summarization/Translation/Gen  │
+│  Readability → textstat         │────▶│  Generation                     │
+│  Fuzzy Match → rapidfuzz        │────▶│  Extraction/QA                  │
+│  evaluate → HuggingFace         │────▶│  Summarization/Translation      │
+└─────────────────────────────────┘     └─────────────────────────────────┘
+```
+
+> **📌 BLEU/chrF/TER** (all in `sacrebleu` package):
+> | Metric | What It Measures | Score | Best For |
+> |--------|------------------|-------|----------|
+> | **BLEU** | N-gram precision (word-level) | 0-100 ↑ | General translation quality |
+> | **chrF** | Character n-gram F-score | 0-100 ↑ | Morphologically rich languages |
+> | **TER** | Translation Edit Rate (edits needed) | 0-∞ ↓ | Post-editing effort estimation |
 
 **Available Code Metrics** (from [code_metrics.py#L40-L300](../src/core/code_metrics.py)):
 
