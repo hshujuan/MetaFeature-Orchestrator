@@ -592,6 +592,28 @@ generate_image_evaluation_prompt(
 
 SQLite-based persistence with three stores:
 
+#### Why SQLite?
+
+| Benefit | Description |
+|---------|-------------|
+| **Zero Configuration** | No server setup, no connection strings - just a file |
+| **Serverless** | Embedded directly in the application, no separate database process |
+| **Portable** | Single `.db` file that can be copied, backed up, or version-controlled |
+| **Lightweight** | Minimal memory footprint (~600KB library) |
+| **ACID Compliant** | Full transaction support with rollback capabilities |
+| **Cross-Platform** | Works identically on Windows, macOS, Linux |
+| **No Dependencies** | Python's `sqlite3` module is built-in (standard library) |
+
+**For MetaFeature-Orchestrator specifically:**
+- **Local persistence** - Saves generated prompts, features, and run history without needing a database server
+- **Development-friendly** - Easy to inspect with tools like DB Browser or the `tests/query_db.py` script
+- **Deployment simplicity** - Users don't need to install/configure MySQL/PostgreSQL
+- **Offline capable** - Works without network connectivity
+
+> **Note:** SQLite is not ideal for high-concurrency write scenarios or datasets larger than ~1TB. For this tool's use case (storing evaluation prompts and run history locally), SQLite is an excellent fit.
+
+#### Entity Relationship Diagram
+
 ```mermaid
 erDiagram
     FEATURES {
