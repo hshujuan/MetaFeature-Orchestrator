@@ -1,34 +1,47 @@
 # Agent Design Documentation
 
+> **Version**: 2.0  
+> **Last Updated**: January 25, 2026
+
 ## Overview
 
-The `FeaturePromptWriterAgent` is the core component responsible for generating evaluation prompts. Despite the "Agent" naming, it implements an **agentic workflow pattern** (structured pipeline) rather than an autonomous agent.
+MetaFeature-Orchestrator provides two agent modes for generating evaluation prompts:
+
+1. **Template Mode** (`FeaturePromptWriterAgent`): Deterministic, template-based prompt generation
+2. **AI Agent Mode** (`MetaFeatureAgent` v2.0): AI-powered agent using Microsoft Agent Framework
+
+Both modes now generate **v2.0 evaluation prompts** with hard FAIL gates, second-order quality signals, and structured JSON output.
 
 ---
 
-## Architecture Classification
+## Dual-Mode Architecture
 
-| Aspect | This Implementation | Autonomous Agent |
-|--------|---------------------|------------------|
-| **Framework** | None - pure Python | LangChain, AutoGen, CrewAI |
-| **Planning** | Hard-coded workflow | Dynamic planning |
-| **Tool Use** | None | Calls tools autonomously |
-| **Memory** | Stateless | Maintains conversation/context |
-| **Loops** | Single-pass | Iterative reasoning loops |
+| Aspect | Template Mode | AI Agent Mode |
+|--------|---------------|---------------|
+| **Class** | `FeaturePromptWriterAgent` | `MetaFeatureAgent` |
+| **Framework** | Pure Python | Microsoft Agent Framework |
+| **Planning** | Hard-coded workflow | Dynamic LLM reasoning |
+| **Tool Use** | None | 7 tools via `@ai_function` |
+| **Memory** | Stateless | Thread-based conversation |
 | **Decision Making** | Deterministic code paths | LLM-driven decisions |
+| **Speed** | Instant | Requires API calls |
+| **Cost** | Free | API costs |
+| **Best For** | Simple, well-defined features | Complex, novel features |
 
-**Classification**: Template-driven prompt builder with rule-based RAI injection.
+**Recommendation**: Use Template Mode as the **canonical contract**, AI Agent Mode for **adaptive execution**.
 
 ---
 
-## Pipeline Flow
+## Template Mode: `FeaturePromptWriterAgent`
+
+### Pipeline Flow
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │                    FeaturePromptWriterAgent.generate()              │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                     │
-│   Input: FeatureSpec or FeatureMetadata                            │
+│   Input: FeatureSpec or FeatureMetadata + Locale (BCP 47)          │
 │      │                                                              │
 │      ▼                                                              │
 │   ┌─────────────────────────────────────────┐                      │
@@ -49,13 +62,14 @@ The `FeaturePromptWriterAgent` is the core component responsible for generating 
 │      ▼                                                              │
 │   ┌─────────────────────────────────────────┐                      │
 │   │ Step 3: build_evaluation_prompt()       │  ◄── Template-based  │
-│   │   • Select category-specific template   │      (string format) │
-│   │   • Fill in metrics, definitions        │                      │
+│   │   • Select category-specific template   │      (v2.0 format)   │
+│   │   • Add hard FAIL gates                 │                      │
+│   │   • Add second-order quality signals    │                      │
 │   │   • Apply localization (i18n)           │                      │
 │   └─────────────────────────────────────────┘                      │
 │      │                                                              │
 │      ▼                                                              │
-│   Output: PromptOutput                                              │
+│   Output: PromptOutput (v2.0 Canonical Contract)                    │
 │      • evaluation_prompt (string)                                   │
 │      • metrics_used (list)                                          │
 │      • metric_definitions (dict)                                    │
@@ -64,15 +78,13 @@ The `FeaturePromptWriterAgent` is the core component responsible for generating 
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-**Key Point**: No LLM is called inside the agent. It's pure Python logic.
+**Key Point**: No LLM is called inside the template agent. It's pure Python logic.
 
 ---
 
-## Source Code Reference
+### Source Code Reference
 
 **File**: [src/core/agent.py](../src/core/agent.py)
-
-### Class Definition
 
 ```python
 class FeaturePromptWriterAgent:
@@ -114,61 +126,179 @@ The agent automatically injects Responsible AI metrics based on feature configur
 
 ---
 
-## Where LLM IS Called
+## AI Agent Mode: `MetaFeatureAgent` v2.0
 
-The agent itself does **not** call the LLM. LLM calls happen in [app.py](../src/core/app.py):
+### Overview
 
-| Function | Purpose | Temperature |
-|----------|---------|-------------|
-| `generate_ai_outputs()` | Generate good/bad test outputs | 0.0 |
-| `run_simulation_evaluation()` | Run LLM-based scoring | 0.0 |
+The `MetaFeatureAgent` is a **true AI agent** built on Microsoft Agent Framework that uses LLMs to make dynamic decisions about metric selection, RAI compliance, and prompt generation.
+
+**File**: [src/core/ai_agent.py](../src/core/ai_agent.py)
+
+### System Prompt (v2.0)
+
+```
+You are MetaFeature Agent v2.0, an expert AI evaluation prompt generator.
+
+Your ONLY job is to generate a complete, production-ready evaluation prompt for GenAI features.
+
+## Your Role: Execution-Time Evaluator Prompt Generator
+
+You create evaluation prompts that:
+1. Are **immediately usable** - no further editing needed
+2. Include **explicit FAIL gates** for safety-critical decisions
+3. Have **versioned, auditable** structure for reproducibility
+4. Cover **second-order quality signals** (fluency, cultural fit, regional compliance)
+```
+
+### Available Tools (7 total)
+
+The AI agent has access to these tools via `@ai_function` decorator:
+
+| Tool | Purpose | Returns |
+|------|---------|---------|
+| `lookup_metrics` | Find metrics for a category | Metric names, definitions, weights |
+| `suggest_metrics` | Get recommendations for additional metrics | Suggested metrics list |
+| `get_locale_info` | Get cultural/regulatory info for a locale | Cultural context, tone guidance, privacy framework |
+| `validate_rai_compliance` | Check if metrics meet RAI requirements | Compliance status, issues, recommendations |
+| `build_prompt` | Generate the v2.0 evaluation prompt | Complete evaluation prompt string |
+| `get_code_metrics` | Get programmatic metrics sample | Code sample for ROUGE, BLEU, etc. |
+| `analyze_feature_description` | Extract attributes from natural language | Category, sensitivity flags, confidence |
+
+### Agent Workflow
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    MetaFeatureAgent.chat(message)                   │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│   User: "I need an evaluation prompt for a medical summarizer      │
+│          that will be used by doctors in Germany"                   │
+│      │                                                              │
+│      ▼                                                              │
+│   ┌─────────────────────────────────────────┐                      │
+│   │ Tool: analyze_feature_description       │  ◄── Understand      │
+│   │   • Detected: summarization             │      intent          │
+│   │   • Privacy: True (medical)             │                      │
+│   │   • Safety: True (medical)              │                      │
+│   └─────────────────────────────────────────┘                      │
+│      │                                                              │
+│      ▼                                                              │
+│   ┌─────────────────────────────────────────┐                      │
+│   │ Tool: lookup_metrics                    │  ◄── Get metrics     │
+│   │   • Category: summarization             │      for category    │
+│   │   • Returns: faithfulness, coverage...  │                      │
+│   └─────────────────────────────────────────┘                      │
+│      │                                                              │
+│      ▼                                                              │
+│   ┌─────────────────────────────────────────┐                      │
+│   │ Tool: suggest_metrics                   │  ◄── Add safety/     │
+│   │   • privacy_sensitive=True              │      privacy metrics │
+│   │   • safety_critical=True                │                      │
+│   └─────────────────────────────────────────┘                      │
+│      │                                                              │
+│      ▼                                                              │
+│   ┌─────────────────────────────────────────┐                      │
+│   │ Tool: get_locale_info                   │  ◄── Get German      │
+│   │   • Locale: de-DE                       │      cultural info   │
+│   │   • Privacy: GDPR                       │                      │
+│   └─────────────────────────────────────────┘                      │
+│      │                                                              │
+│      ▼                                                              │
+│   ┌─────────────────────────────────────────┐                      │
+│   │ Tool: validate_rai_compliance           │  ◄── Verify RAI      │
+│   │   • Check: safety, privacy, groundedness│                      │
+│   │   • Result: Compliant                   │                      │
+│   └─────────────────────────────────────────┘                      │
+│      │                                                              │
+│      ▼                                                              │
+│   ┌─────────────────────────────────────────┐                      │
+│   │ Tool: build_prompt                      │  ◄── Generate v2.0   │
+│   │   • All parameters from above           │      prompt          │
+│   │   • Returns: Complete evaluation prompt │                      │
+│   └─────────────────────────────────────────┘                      │
+│      │                                                              │
+│      ▼                                                              │
+│   Output: Complete v2.0 Evaluation Prompt                          │
+│      • Hard FAIL gates                                              │
+│      • Primary metrics with weights                                 │
+│      • Second-order quality signals                                 │
+│      • Structured JSON output format                                │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## Prompt Templates
+## v2.0 Prompt Templates
 
-The agent delegates to [prompt_templates.py](../src/core/prompt_templates.py) for template rendering.
-
-### Category-Specific Role Prompts
-
-| Category | Role Description |
-|----------|------------------|
-| `auto_reply` | "You are an expert evaluator for AI-generated email/message replies. Your task is to score the generated reply against the original message using the metrics below." |
-| `summarization` | "You are an expert evaluator for AI-generated summaries. Your task is to assess the summary against the source document using the metrics below." |
-| `translation` | "You are an expert evaluator for AI-generated translations. Your task is to assess translation quality against the source text." |
-| `generic` | "You are an expert evaluator for AI-generated outputs. Your task is to assess the quality of the generated content using the metrics below." |
+Both modes generate prompts using the v2.0 template format.
 
 ### Template Structure
 
 Each generated prompt includes:
-1. **Role** - Evaluator persona
-2. **Metrics** - With definitions and weights
-3. **Scoring Rubric** - 1-5 scale with descriptions
-4. **RAI Checks** - Safety, privacy, bias checks
-5. **Output Format** - Expected JSON schema
+
+| Section | Purpose |
+|---------|---------|
+| **1. Evaluator Role & Task** | Clear role definition and task description |
+| **2. Hard FAIL Gates** | Safety, Privacy, Toxicity, Legal gates with automatic override |
+| **3. Primary Metrics** | Metric definitions with weights and 1-5 scoring scale |
+| **4. Second-Order Signals** | Fluency, linguistic naturalness, localization quality, regional compliance |
+| **5. Evaluation Protocol** | Step-by-step evaluation process |
+| **6. Responsible AI Checklist** | Locale-specific RAI checks |
+| **7. Output Format** | Structured JSON schema |
+
+### Category-Specific Hard Gates
+
+| Template | Hard Gates |
+|----------|------------|
+| **Generic** | Safety, Privacy, Toxicity, Legal |
+| **Summarization** | Hallucination, Safety, Privacy, Factual |
+| **Translation** | Meaning, Offensive, Safety, Legal |
+| **Auto-Reply** | Relevance, Safety, Privacy, Tone |
+| **Personal Assistant** | Privacy, Consent, Safety, Medical, Financial |
+
+### Second-Order Quality Signals
+
+| Signal | Weight | Description |
+|--------|--------|-------------|
+| Fluency | 0.7-0.9 | Natural, grammatically correct |
+| Linguistic Naturalness | 0.8-0.9 | Reads as native speaker would write |
+| Localization Quality | 0.9-1.0 | Proper locale conventions (dates, numbers) |
+| Regional Compliance | 0.9-1.0 | Meets local regulatory requirements |
+| Cultural Appropriateness | 0.9-1.0 | Respects cultural norms, avoids taboos |
+
+---
+
+## Where LLM IS Called
+
+| Component | Function | LLM Used |
+|-----------|----------|----------|
+| Template Mode | `generate()` | **None** - pure Python |
+| AI Agent Mode | `chat()` | Azure OpenAI via Agent Framework |
+| Simulation | `generate_ai_outputs()` | Azure OpenAI (temperature 0.0) |
+| Evaluation | `run_simulation_evaluation()` | Azure OpenAI (temperature 0.0) |
 
 ---
 
 ## Localization (i18n)
 
-The agent supports 8 languages for prompt generation:
+Both modes support **20+ BCP 47 locales**:
 
-| Code | Language |
-|------|----------|
-| `en` | English |
-| `zh` | Chinese (Simplified) |
-| `ja` | Japanese |
-| `es` | Spanish |
-| `fr` | French |
-| `de` | German |
-| `pt` | Portuguese |
-| `ko` | Korean |
+| Region | Locales |
+|--------|---------|
+| **English** | en-US, en-GB, en-AU, en-CA, en-IN |
+| **Chinese** | zh-CN, zh-TW, zh-HK |
+| **European** | de-DE, fr-FR, fr-CA, es-ES, es-MX, pt-BR, pt-PT, it-IT, nl-NL |
+| **Asian** | ja-JP, ko-KR |
+| **Other** | ar-SA, he-IL, ru-RU, tr-TR |
 
 All labels, instructions, and rubrics are localized in `LOCALIZED_LABELS` dict.
 
 ---
 
-## Usage Example
+## Usage Examples
+
+### Template Mode (Deterministic)
 
 ```python
 from src.core.agent import FeaturePromptWriterAgent
@@ -191,50 +321,20 @@ feature = FeatureSpec(
     safety_critical=False,
 )
 
-# Generate evaluation prompt
-result = agent.generate(feature, language="en")
+# Generate v2.0 evaluation prompt
+result = agent.generate(feature, locale="en-US")
 
 print(result.evaluation_prompt)
 print(f"Metrics: {result.metrics_used}")
 print(f"RAI checks: {result.rai_checks_applied}")
 ```
 
----
-
-## Design Decisions
-
-### Why Not an Autonomous Agent?
-
-1. **Predictability** - Fixed pipeline ensures consistent output structure
-2. **Debuggability** - Each step can be traced and tested
-3. **Performance** - No LLM calls means instant prompt generation
-4. **Cost** - No API costs for prompt construction
-5. **Control** - RAI constraints are guaranteed, not "suggested"
-
-### Why Call It "Agent"?
-
-The term "agent" here refers to the **agent pattern** in software design:
-- A component that acts on behalf of the user
-- Makes decisions based on input (metric selection, RAI injection)
-- Produces actionable output (evaluation prompts)
-
-It's not an "AI agent" in the LangChain/AutoGen sense.
-
----
-
-## Future Enhancements ✅ (Now Implemented!)
-
-The following enhancements have been implemented using **Microsoft Agent Framework**:
-
-### New: MetaFeatureAgent (AI-Powered)
-
-**File**: [src/core/ai_agent.py](../src/core/ai_agent.py)
-
-The `MetaFeatureAgent` is a **true AI agent** that uses LLMs to make dynamic decisions:
+### AI Agent Mode (Adaptive)
 
 ```python
 from src.core.ai_agent import MetaFeatureAgent
 
+# Create AI agent (requires Azure OpenAI)
 agent = MetaFeatureAgent()
 
 # Natural language request - the agent figures out the rest
@@ -244,40 +344,46 @@ response = agent.chat(
     "careful about accuracy and patient privacy."
 )
 
+# Returns complete v2.0 evaluation prompt with:
+# - HALLUCINATION, SAFETY, PRIVACY, FACTUAL gates
+# - Summarization metrics (faithfulness, coverage, etc.)
+# - German locale with GDPR framework
+# - Second-order quality signals
 print(response.evaluation_prompt)
 ```
 
-### Agent Comparison
+---
 
-| Aspect | FeaturePromptWriterAgent (Legacy) | MetaFeatureAgent (New) |
-|--------|-----------------------------------|------------------------|
-| **Framework** | None - pure Python | Microsoft Agent Framework |
-| **Decision Making** | Deterministic code paths | LLM-driven decisions |
-| **Tool Use** | None | 11 tools available |
-| **Memory** | Stateless | Thread-based conversation |
-| **Natural Language** | Structured input only | Understands free-form requests |
-| **Error Recovery** | None | Can retry with different approaches |
-| **Complex Features** | Limited handling | Dynamic reasoning |
+## Design Decisions
 
-### Available Tools
+### Why Two Modes?
 
-The AI agent has access to these tools ([agent_tools.py](../src/core/agent_tools.py)):
+| Consideration | Template Mode | AI Agent Mode |
+|---------------|---------------|---------------|
+| **Predictability** | 100% deterministic | High (structured output) |
+| **Debuggability** | Each step can be traced | LLM reasoning visible |
+| **Performance** | Instant (no API calls) | Requires LLM roundtrips |
+| **Cost** | Free | API costs |
+| **Adaptability** | Fixed templates | Dynamic reasoning |
+| **Natural Language** | Structured input only | Free-form requests |
 
-| Tool | Purpose |
-|------|---------|
-| `lookup_metrics` | Find metrics for a category |
-| `suggest_metrics` | Get recommendations for additional metrics |
-| `search_metric_by_name` | Find metrics by keyword |
-| `get_locale_info` | Get cultural/regulatory info for a locale |
-| `list_supported_locales` | See all supported locales |
-| `search_similar_features` | Find existing similar features in DB |
-| `get_feature_by_id` | Retrieve a specific feature |
-| `build_prompt` | Generate the evaluation prompt |
-| `validate_rai_compliance` | Check if metrics meet RAI requirements |
-| `get_code_metrics` | Get programmatic metrics (ROUGE, BLEU) |
-| `analyze_feature_description` | Extract attributes from natural language |
+**Best Practice**: Use Template Mode as the **canonical contract** for auditing and reproducibility. Use AI Agent Mode for **adaptive execution** when features are complex or novel.
 
-### Workflows for Complex Features
+### Why v2.0 Prompts?
+
+The v2.0 format addresses gaps identified in prompt quality analysis:
+
+| Issue | v1.0 | v2.0 Solution |
+|-------|------|---------------|
+| Missing hard gates | Soft scoring only | Explicit FAIL gates with override |
+| Subtle quality issues | Primary metrics only | Second-order quality signals |
+| Regional compliance | Limited | Privacy frameworks per locale |
+| Reproducibility | Variable | Canonical contract format |
+| Auditability | Minimal | Version, timestamp, evaluation_id |
+
+---
+
+## Workflows for Complex Features
 
 **File**: [src/core/workflows.py](../src/core/workflows.py)
 
@@ -296,7 +402,7 @@ result = runner.run(
     safety_critical=True
 )
 
-# Get prompts for each locale
+# Get v2.0 prompts for each locale
 for locale, prompt in result.prompts.items():
     print(f"--- {locale} ---")
     print(prompt[:200] + "...")
@@ -331,27 +437,51 @@ print(f"RAI issues: {state.rai_issues}")
 # Human approves
 state = workflow.approve_rai(state, approved=True)
 
-# Get final results
+# Get final results (v2.0 prompts)
 state = workflow.finalize(state)
 ```
 
-### When to Use Which?
+---
 
-| Scenario | Recommended |
-|----------|-------------|
-| Simple, predefined features | `FeaturePromptWriterAgent` (fast, no API calls) |
-| Natural language requests | `MetaFeatureAgent` |
-| Multi-locale features | `WorkflowRunner` |
-| Safety-critical with approval | `HumanReviewWorkflow` |
-| Interactive exploration | `MetaFeatureAgent.chat()` |
+## When to Use Which Mode?
 
-### Installation
+| Scenario | Recommended Mode |
+|----------|------------------|
+| Simple, predefined features | Template Mode (fast, no API calls) |
+| Natural language requests | AI Agent Mode |
+| Multi-locale features | WorkflowRunner |
+| Safety-critical with approval | HumanReviewWorkflow |
+| Interactive exploration | AI Agent Mode `chat()` |
+| Auditable contracts | Template Mode |
+| Novel feature types | AI Agent Mode |
+| Cost-sensitive environments | Template Mode |
 
-The AI agent requires Microsoft Agent Framework:
+---
+
+## Installation
+
+### Template Mode (Always Available)
+
+No additional dependencies required.
+
+### AI Agent Mode (Optional)
+
+Requires Microsoft Agent Framework and Azure OpenAI:
 
 ```bash
 pip install agent-framework --pre
 ```
 
-The legacy agent works without it. Agent Framework components are optional and gracefully degrade if not installed.
+Configure `.env`:
+```env
+AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com
+AZURE_OPENAI_API_KEY=your-api-key
+DEPLOYMENT_NAME=gpt-4o
+```
+
+Agent Framework components gracefully degrade if not installed - the app falls back to Template Mode.
+
+---
+
+*Last updated: January 25, 2026*
 

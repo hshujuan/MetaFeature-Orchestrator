@@ -1,8 +1,17 @@
 # MetaFeature-Orchestrator: Architecture Overview
 
-> **Version**: 0.1.0  
+> **Version**: 2.0  
 > **Last Updated**: January 25, 2026  
 > **Document Type**: High-Level Architecture
+
+---
+
+## What's New in v2.0
+
+- **Dual-Mode Agents**: Template Mode (deterministic) + AI Agent Mode (adaptive)
+- **v2.0 Evaluation Prompts**: Hard FAIL gates, second-order quality signals, canonical contract format
+- **Microsoft Agent Framework**: AI Agent with 7 tools via `@ai_function`
+- **Enhanced Locale Support**: 20+ BCP 47 locales with cultural context and privacy frameworks
 
 ---
 
@@ -13,13 +22,14 @@
 | [run.py](../run.py) | Entry point analysis - shows the application bootstrapping mechanism |
 | [src/__init__.py](../src/__init__.py) | Package exports - reveals the public API surface |
 | [src/core/__init__.py](../src/core/__init__.py) | Core module structure - shows all exported components and their organization |
-| [src/core/agent.py](../src/core/agent.py) | Core agent logic - implements the `FeaturePromptWriterAgent` and prompt generation pipeline |
-| [src/core/app.py](../src/core/app.py) | Gradio web UI - defines the user interface and predefined feature templates |
+| [src/core/agent.py](../src/core/agent.py) | Template Mode - implements the `FeaturePromptWriterAgent` (deterministic pipeline) |
+| [src/core/ai_agent.py](../src/core/ai_agent.py) | AI Agent Mode - implements `MetaFeatureAgent` v2.0 with Microsoft Agent Framework |
+| [src/core/app.py](../src/core/app.py) | Gradio web UI - defines the user interface with AI Agent toggle |
 | [src/core/schemas.py](../src/core/schemas.py) | Data models - Pydantic/dataclass definitions for all domain objects |
 | [src/core/llm_client.py](../src/core/llm_client.py) | LLM integration - Azure OpenAI/OpenAI client wrapper with singleton pattern |
 | [src/core/database.py](../src/core/database.py) | Persistence layer - SQLite storage for features, templates, and evaluation runs |
-| [src/core/metrics_registry.py](../src/core/metrics_registry.py) | Metrics definitions - 14+ built-in metrics with i18n support |
-| [src/core/prompt_templates.py](../src/core/prompt_templates.py) | Prompt engineering - **core prompt generation logic** including `build_evaluation_prompt()`, category-specific templates (auto_reply, summarization, translation, generic), bilingual text rendering, metrics block formatting, scoring rubrics, and JSON output schemas |
+| [src/core/metrics_registry.py](../src/core/metrics_registry.py) | Metrics definitions - 20+ built-in metrics with i18n support |
+| [src/core/prompt_templates.py](../src/core/prompt_templates.py) | **v2.0 Prompt Templates** - Category-specific templates with hard FAIL gates, second-order signals, locale-aware RAI |
 | [src/core/code_metrics.py](../src/core/code_metrics.py) | Programmatic metrics - code-based evaluation using open-source NLP libraries |
 | [src/core/image_generator.py](../src/core/image_generator.py) | Image generation - DALL-E 3 integration for testing image features |
 | [README.md](../README.md) | Project documentation - design principles and usage instructions |
@@ -39,10 +49,11 @@
 ├─────────────────┬───────────────────────────────────────────────────────┤
 │ Metric-first    │ Define evaluation criteria BEFORE prompt generation  │
 │ Grounded        │ Clear rubrics and thresholds guide evaluation        │
-│ Agent-based     │ Intelligent prompt synthesis, not hard-coded templates│
+│ Dual-mode       │ Template (deterministic) + AI Agent (adaptive) modes │
 │ RAI by Design   │ Safety, privacy, fairness built into every evaluation│
 │ Human-reviewable│ All outputs are transparent and auditable            │
 │ Locale-aware    │ 20+ BCP 47 locales with culture-specific evaluation  │
+│ Contract-based  │ v2.0 prompts serve as auditable evaluation contracts │
 └─────────────────┴───────────────────────────────────────────────────────┘
 ```
 
@@ -62,12 +73,14 @@ flowchart TB
     subgraph UI["Presentation Layer"]
         GRADIO[Gradio Web App<br/>app.py]
         TEMPLATES[Predefined Templates<br/>GROUPED_FEATURES]
+        MODE_TOGGLE[AI Agent Mode Toggle<br/>Auto/Always/Never]
     end
 
     subgraph Core["Core Business Logic"]
-        AGENT[FeaturePromptWriterAgent<br/>agent.py]
+        AGENT[FeaturePromptWriterAgent<br/>agent.py - Template Mode]
+        AI_AGENT[MetaFeatureAgent v2.0<br/>ai_agent.py - AI Agent Mode]
         METRICS_REG[MetricsRegistry<br/>metrics_registry.py]
-        PROMPT_TPL[PromptTemplates<br/>prompt_templates.py]
+        PROMPT_TPL[v2.0 PromptTemplates<br/>prompt_templates.py]
     end
 
     subgraph Domain["Domain Models"]
@@ -80,6 +93,7 @@ flowchart TB
     subgraph Integration["External Integration"]
         LLM[LLMClient<br/>llm_client.py]
         IMG_GEN[ImageGenerator<br/>image_generator.py]
+        AGENT_FW[Microsoft Agent Framework<br/>@ai_function tools]
     end
 
     subgraph Persistence["Data Layer"]
@@ -98,7 +112,12 @@ flowchart TB
     RUN --> GRADIO
     CLI --> GRADIO
     GRADIO --> TEMPLATES
+    GRADIO --> MODE_TOGGLE
     GRADIO --> AGENT
+    
+    MODE_TOGGLE --> AI_AGENT
+    AI_AGENT --> AGENT_FW
+    AI_AGENT --> PROMPT_TPL
     
     AGENT --> METRICS_REG
     AGENT --> PROMPT_TPL
@@ -110,6 +129,7 @@ flowchart TB
     
     GRADIO --> LLM
     AGENT --> LLM
+    AI_AGENT --> LLM
     IMG_GEN --> DALLE
     OPENAI --> AZURE
     LLM --> AZURE
@@ -141,9 +161,13 @@ if __name__ == "__main__":
 
 ---
 
-### 3.2 Agent Layer (`FeaturePromptWriterAgent`)
+### 3.2 Dual-Mode Agent Layer
 
-The agent is the **central orchestrator** for generating evaluation prompts. It is stateless and produces consistent output structures for identical inputs.
+MetaFeature-Orchestrator provides two agent modes for generating evaluation prompts:
+
+#### Template Mode (`FeaturePromptWriterAgent`)
+
+The deterministic agent produces **canonical evaluation contracts**. It is stateless and produces consistent output structures for identical inputs.
 
 ```mermaid
 flowchart LR
@@ -155,15 +179,15 @@ flowchart LR
     subgraph Agent["FeaturePromptWriterAgent"]
         RESOLVE[_resolve_metrics]
         RAI[_apply_rai_constraints]
-        BUILD[build_evaluation_prompt]
+        BUILD[build_evaluation_prompt<br/>v2.0 format]
     end
     
     subgraph Output
-        PO[PromptOutput]
+        PO[PromptOutput<br/>Canonical Contract]
     end
     
     FM --> RESOLVE
-    LANG --> RESOLVE
+    LOCALE --> RESOLVE
     RESOLVE --> RAI
     RAI --> BUILD
     BUILD --> PO
@@ -173,10 +197,54 @@ flowchart LR
 
 | Method | Purpose | Line Reference |
 |--------|---------|----------------|
-| `generate()` | Main entry - converts feature to prompt | Lines 38-87 |
+| `generate()` | Main entry - converts feature to v2.0 prompt | Lines 38-87 |
 | `_resolve_metrics()` | Resolves which metrics to use from registry | Lines 89-120 |
 | `_apply_rai_constraints()` | Auto-adds safety/privacy metrics | Lines 122-165 |
 | `_metadata_to_spec()` | Converts Pydantic model to dataclass | Lines 167-181 |
+
+#### AI Agent Mode (`MetaFeatureAgent` v2.0)
+
+The adaptive AI agent built on **Microsoft Agent Framework** with 7 tools:
+
+```mermaid
+flowchart LR
+    subgraph Input
+        NL[Natural Language<br/>Feature Description]
+    end
+    
+    subgraph AIAgent["MetaFeatureAgent v2.0"]
+        ANALYZE[analyze_feature_description]
+        LOOKUP[lookup_metrics]
+        SUGGEST[suggest_metrics]
+        LOCALE_INFO[get_locale_info]
+        RAI[validate_rai_compliance]
+        BUILD[build_prompt]
+    end
+    
+    subgraph Output
+        PO[v2.0 Evaluation Prompt]
+    end
+    
+    NL --> ANALYZE
+    ANALYZE --> LOOKUP
+    LOOKUP --> SUGGEST
+    SUGGEST --> LOCALE_INFO
+    LOCALE_INFO --> RAI
+    RAI --> BUILD
+    BUILD --> PO
+```
+
+**Available Tools** (from [ai_agent.py](../src/core/ai_agent.py)):
+
+| Tool | Purpose |
+|------|---------|
+| `lookup_metrics` | Find metrics for a category |
+| `suggest_metrics` | Recommend additional metrics |
+| `get_locale_info` | Get cultural/regulatory info |
+| `validate_rai_compliance` | Check RAI requirements |
+| `build_prompt` | Generate v2.0 prompt |
+| `get_code_metrics` | Get programmatic metrics sample |
+| `analyze_feature_description` | Extract attributes from natural language |
 
 **RAI Auto-Injection Logic** (source: [agent.py#L122-L165](../src/core/agent.py)):
 - **Safety metric**: Always added for all GenAI features

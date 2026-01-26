@@ -744,6 +744,71 @@ Please:
                         except json.JSONDecodeError:
                             pass
                 
+                # Detect if AI returned a summary instead of actual prompt
+                # A real prompt starts with # Evaluation or ## Role or "You are"
+                is_summary = False
+                prompt_lower = evaluation_prompt.lower().strip()
+                summary_indicators = [
+                    "### summary", "**metrics selected", "here's what", "here is what",
+                    "i've generated", "i have generated", "the evaluation prompt",
+                    "rai checks applied", "**rai checks"
+                ]
+                prompt_indicators = [
+                    "# evaluation prompt", "## role", "## evaluator role", 
+                    "you are an expert evaluator", "you are an evaluator",
+                    "**target language:**", "**locale:**"
+                ]
+                
+                has_summary_indicator = any(ind in prompt_lower for ind in summary_indicators)
+                has_prompt_indicator = any(ind in prompt_lower for ind in prompt_indicators)
+                
+                if has_summary_indicator and not has_prompt_indicator:
+                    is_summary = True
+                    logger.warning("AI Agent returned a summary instead of evaluation prompt, generating direct prompt")
+                
+                # If AI returned a summary, generate the prompt directly using build_evaluation_prompt
+                if is_summary:
+                    from .prompt_templates import build_evaluation_prompt
+                    # get_metric is already imported at module level
+                    
+                    # Build metric definitions
+                    metric_defs_dict = {}
+                    for m in selected_metrics:
+                        metric_obj = get_metric(m)
+                        if metric_obj:
+                            lang = locale.split("-")[0] if "-" in locale else locale
+                            metric_defs_dict[m] = {
+                                "name": metric_obj.name,
+                                "definition": metric_obj.get_definition(lang),
+                                "weight": metric_obj.weight,
+                                "is_primary": metric_obj.is_primary,
+                                "rai_tags": metric_obj.rai_tags
+                            }
+                    
+                    # Build RAI constraints
+                    rai_constraints = {
+                        "no_pii_leakage": check_privacy,
+                        "safety_critical": check_safety,
+                        "toxicity_check_required": check_safety,
+                        "bias_check_required": check_fairness,
+                        "cultural_sensitivity": check_transparency
+                    }
+                    
+                    evaluation_prompt = build_evaluation_prompt(
+                        feature_name=feature_name.strip(),
+                        category=category,
+                        locale=locale,
+                        metrics_used=selected_metrics,
+                        metric_defs=metric_defs_dict,
+                        feature_description=feature_description.strip(),
+                        typical_input=typical_input_example.strip() if typical_input_example else "",
+                        expected_output=expected_output_example.strip() if expected_output_example else "",
+                        input_format=input_format,
+                        output_format=output_format,
+                        additional_context=additional_context.strip() if additional_context else "",
+                        rai_constraints=rai_constraints
+                    )
+                
                 # Format outputs
                 metric_defs = format_metric_definitions(selected_metrics, locale)
                 
