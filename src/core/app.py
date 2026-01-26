@@ -732,6 +732,17 @@ Please:
                 # Try to extract structured prompt if available
                 if response.evaluation_prompt:
                     evaluation_prompt = response.evaluation_prompt
+                else:
+                    # Try to extract from JSON in the response
+                    import re
+                    json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', response.message, re.DOTALL)
+                    if json_match:
+                        try:
+                            data = json.loads(json_match.group(1))
+                            if isinstance(data, dict) and "evaluation_prompt" in data:
+                                evaluation_prompt = data["evaluation_prompt"]
+                        except json.JSONDecodeError:
+                            pass
                 
                 # Format outputs
                 metric_defs = format_metric_definitions(selected_metrics, locale)
@@ -769,11 +780,23 @@ Please:
                     f"✅ Generated with **AI Agent** ({complexity_reason})"
                 )
             else:
-                # AI agent failed, fall back to legacy
-                logger.warning(f"AI Agent failed, falling back to legacy: {response.message}")
-                # Continue to legacy path below
+                # AI agent failed
+                error_msg = response.message if response.message else "Unknown error"
+                logger.warning(f"AI Agent failed: {error_msg}")
+                
+                # If mode is "always", show a clear status message about the fallback
+                if use_ai_agent == "always":
+                    logger.warning("AI Agent mode is 'always' but AI agent failed, using fallback")
+                # Continue to legacy path below (with updated status message)
         
         # === LEGACY AGENT PATH ===
+        # Determine status message
+        if use_ai_agent == "always" and AI_AGENT_AVAILABLE:
+            # User wanted AI agent but it failed
+            status_suffix = " (AI Agent failed, using fallback)"
+        else:
+            status_suffix = ""
+        
         # Build quality metrics
         quality_metrics = []
         for metric_id in selected_metrics:
@@ -889,7 +912,9 @@ Please:
         
         # Build status message
         status_msg = "✅ Generated with **Template Agent** (deterministic)"
-        if use_ai_agent == "auto" and AI_AGENT_AVAILABLE:
+        if use_ai_agent == "always" and AI_AGENT_AVAILABLE:
+            status_msg = "⚠️ Generated with **Template Agent**" + status_suffix
+        elif use_ai_agent == "auto" and AI_AGENT_AVAILABLE:
             status_msg += f" — Feature did not meet complexity threshold"
         elif not AI_AGENT_AVAILABLE:
             status_msg += " — AI Agent not available (install agent-framework)"

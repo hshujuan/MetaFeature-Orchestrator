@@ -83,13 +83,29 @@ class FeaturePromptWriterAgent:
             safety_critical=spec.safety_critical
         )
         
-        # Build the evaluation prompt (now with full locale support)
+        # Build RAI constraints dict
+        rai_constraints = {
+            "no_pii_leakage": spec.privacy_sensitive,
+            "safety_critical": spec.safety_critical,
+            "toxicity_check_required": spec.safety_critical,
+            "bias_check_required": True,  # Always check for bias
+            "cultural_sensitivity": True  # Always check for cultural sensitivity
+        }
+        
+        # Build the evaluation prompt with full feature context
         prompt = build_evaluation_prompt(
             feature_name=spec.name,
             category=spec.category,
             locale=target_locale,
             metrics_used=metrics_used,
-            metric_defs=metric_defs
+            metric_defs=metric_defs,
+            feature_description=spec.description,
+            typical_input=spec.input_example,
+            expected_output=spec.output_example,
+            input_format=spec.input_format,
+            output_format=spec.output_format,
+            additional_context=spec.additional_context,
+            rai_constraints=rai_constraints
         )
         
         return PromptOutput(
@@ -207,6 +223,13 @@ class FeaturePromptWriterAgent:
         locales = metadata.supported_locales if metadata.supported_locales != ["en-US"] else \
                   [f"{lang}-US" if lang == "en" else lang for lang in metadata.supported_languages]
         
+        # Extract input example from good_examples or input_data_sample
+        input_example = metadata.input_data_sample or ""
+        output_example = ""
+        if metadata.good_examples and len(metadata.good_examples) > 0:
+            input_example = input_example or metadata.good_examples[0].input_text
+            output_example = metadata.good_examples[0].output_text
+        
         return FeatureSpec(
             group=metadata.group,
             name=metadata.feature_name,
@@ -218,6 +241,9 @@ class FeaturePromptWriterAgent:
             success_metrics=metadata.success_metrics or [m.name for m in metadata.quality_metrics],
             privacy_sensitive=metadata.responsible_ai.no_pii_leakage,
             safety_critical=metadata.responsible_ai.safety_critical,
+            input_example=input_example,
+            output_example=output_example,
+            additional_context=metadata.domain_constraints
         )
     
     def export_feature_json(self, feature: FeatureSpec | FeatureMetadata) -> dict:

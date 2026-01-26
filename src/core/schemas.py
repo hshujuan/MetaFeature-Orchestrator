@@ -139,6 +139,9 @@ class FeatureSpec:
     success_metrics: List[str]
     privacy_sensitive: bool = True
     safety_critical: bool = False
+    input_example: str = ""  # Typical input example
+    output_example: str = ""  # Expected output example
+    additional_context: str = ""  # Additional context or requirements
     
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

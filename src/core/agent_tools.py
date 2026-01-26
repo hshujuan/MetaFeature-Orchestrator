@@ -1,13 +1,10 @@
 """
-Agent Tools - Tool definitions for the MetaFeature AI Agent
+Agent Tools - Plain function implementations for MetaFeature operations
 
-These tools wrap existing functionality and expose them to the AI agent
-for dynamic decision-making during evaluation prompt generation.
+These functions are used by the AI Agent in ai_agent.py via @ai_function decorator.
+They can also be called directly for programmatic use.
 """
 from typing import List, Dict, Any, Optional
-from dataclasses import dataclass
-
-from agent_framework import tool
 
 from .metrics_registry import (
     METRICS_REGISTRY,
@@ -30,37 +27,22 @@ from .database import FeatureStore, PromptTemplateStore
 from .code_metrics import get_code_metrics_for_category, generate_code_metrics_sample
 
 
-# =============================================================================
-# Tool 1: Metrics Lookup
-# =============================================================================
-
-@tool
 def lookup_metrics(category: str) -> Dict[str, Any]:
     """
     Look up available metrics for a feature category.
     
-    Use this tool when you need to find what metrics are available
-    for evaluating a specific type of AI feature.
-    
     Args:
         category: The feature category (e.g., 'summarization', 'auto_reply', 
-                  'translation', 'image_generation', 'assistant')
+                  'translation', 'image_generation', 'personal_assistant')
     
     Returns:
-        Dictionary with:
-        - default_metrics: List of recommended metrics for this category
-        - all_applicable: List of all metrics that apply to this category
-        - metric_details: Detailed info about each metric
+        Dictionary with default_metrics, all_applicable, and metric_details
     """
     category = category.lower().strip()
     
-    # Get default metrics
     default_metrics = get_default_metrics_for_category(category)
-    
-    # Get all applicable metrics
     all_applicable = get_metrics_for_category(category)
     
-    # Get details for each
     metric_details = {}
     for m_id in all_applicable:
         metric = get_metric(m_id)
@@ -82,26 +64,37 @@ def lookup_metrics(category: str) -> Dict[str, Any]:
     }
 
 
-@tool
-def suggest_metrics(category: str, current_metrics: List[str]) -> Dict[str, Any]:
+def suggest_metrics(
+    category: str, 
+    current_metrics: Optional[List[str]] = None,
+    privacy_sensitive: bool = False,
+    safety_critical: bool = False
+) -> Dict[str, Any]:
     """
     Suggest additional metrics that might be useful for a feature.
-    
-    Use this tool when you want to improve coverage by finding metrics
-    the user might have missed.
     
     Args:
         category: The feature category
         current_metrics: List of metrics already selected
+        privacy_sensitive: Whether feature handles PII
+        safety_critical: Whether feature is safety-critical
     
     Returns:
         Dictionary with suggested metrics and reasons
     """
-    suggestions = suggest_additional_metrics(category, current_metrics)
+    current = current_metrics or []
+    suggestions = suggest_additional_metrics(category, current)
     
-    # Get details for suggestions
+    # Add RAI-specific suggestions
+    if privacy_sensitive and "privacy" not in current:
+        suggestions.append("privacy")
+    if safety_critical and "groundedness" not in current:
+        suggestions.append("groundedness")
+    if "safety" not in current:
+        suggestions.append("safety")
+    
     suggestion_details = []
-    for m_id in suggestions:
+    for m_id in set(suggestions):
         metric = get_metric(m_id)
         if metric:
             suggestion_details.append({
@@ -112,19 +105,15 @@ def suggest_metrics(category: str, current_metrics: List[str]) -> Dict[str, Any]
             })
     
     return {
-        "current_metrics": current_metrics,
-        "suggested_additions": suggestions,
+        "current_metrics": current,
+        "suggested_additions": list(set(suggestions)),
         "suggestion_details": suggestion_details
     }
 
 
-@tool
 def search_metric_by_name(query: str) -> Dict[str, Any]:
     """
     Search for metrics by name or keyword.
-    
-    Use this tool when the user mentions a specific quality attribute
-    and you need to find if we have a matching metric.
     
     Args:
         query: Search term (e.g., 'accuracy', 'safety', 'hallucination')
@@ -136,7 +125,6 @@ def search_metric_by_name(query: str) -> Dict[str, Any]:
     matches = []
     
     for m_id, metric in METRICS_REGISTRY.items():
-        # Match on id, name, or rai_tags
         if (query_lower in m_id.lower() or 
             query_lower in metric.name.lower() or
             any(query_lower in tag.lower() for tag in metric.rai_tags)):
@@ -155,37 +143,23 @@ def search_metric_by_name(query: str) -> Dict[str, Any]:
     }
 
 
-# =============================================================================
-# Tool 2: Locale Information
-# =============================================================================
-
-@tool
 def get_locale_info(locale: str) -> Dict[str, Any]:
     """
     Get detailed information about a locale including cultural context.
-    
-    Use this tool when you need to understand the cultural and regulatory
-    requirements for a specific target audience.
     
     Args:
         locale: BCP 47 locale code (e.g., 'en-US', 'de-DE', 'ja-JP')
     
     Returns:
-        Dictionary with locale details including:
-        - language: ISO language code
-        - region: ISO region code
-        - cultural_context: Formality, directness settings
-        - privacy_framework: Applicable privacy regulation
-        - tone_guidance: Culture-specific communication guidance
+        Dictionary with locale details
     """
     if locale not in SUPPORTED_LOCALES:
-        # Try to find closest match
         lang = locale.split("-")[0] if "-" in locale else locale
         closest = [l for l in SUPPORTED_LOCALES if l.startswith(lang)]
         if closest:
             locale = closest[0]
         else:
-            locale = "en-US"  # Default
+            locale = "en-US"
     
     return {
         "locale": locale,
@@ -198,13 +172,9 @@ def get_locale_info(locale: str) -> Dict[str, Any]:
     }
 
 
-@tool
 def list_supported_locales() -> Dict[str, Any]:
     """
     List all supported locales with their privacy frameworks.
-    
-    Use this tool when you need to help the user choose an appropriate
-    locale or when handling multi-locale features.
     
     Returns:
         Dictionary with all supported locales grouped by region
@@ -227,21 +197,13 @@ def list_supported_locales() -> Dict[str, Any]:
     }
 
 
-# =============================================================================
-# Tool 3: Database Operations
-# =============================================================================
-
-@tool
 def search_similar_features(
     query: str,
     category: Optional[str] = None,
     limit: int = 5
 ) -> Dict[str, Any]:
     """
-    Search the database for similar features that have been created before.
-    
-    Use this tool to find existing features that might serve as templates
-    or to avoid duplicating work.
+    Search the database for similar features.
     
     Args:
         query: Search term (feature name or description keywords)
@@ -255,7 +217,6 @@ def search_similar_features(
         store = FeatureStore()
         all_features = store.list_features()
         
-        # Simple text matching (could be enhanced with embeddings)
         query_lower = query.lower()
         matches = []
         
@@ -274,7 +235,6 @@ def search_similar_features(
                     "relevance_score": score
                 })
         
-        # Sort by relevance
         matches.sort(key=lambda x: x["relevance_score"], reverse=True)
         
         return {
@@ -291,12 +251,9 @@ def search_similar_features(
         }
 
 
-@tool
 def get_feature_by_id(feature_id: str) -> Dict[str, Any]:
     """
     Retrieve a specific feature from the database by ID.
-    
-    Use this tool when you need the full details of a known feature.
     
     Args:
         feature_id: The unique identifier of the feature
@@ -314,75 +271,67 @@ def get_feature_by_id(feature_id: str) -> Dict[str, Any]:
         return {"found": False, "error": str(e)}
 
 
-# =============================================================================
-# Tool 4: Prompt Building
-# =============================================================================
-
-@tool
 def build_prompt(
     feature_name: str,
+    feature_description: str,
     category: str,
+    metrics: List[str],
     locale: str,
-    metrics: List[str]
+    input_format: str = "text",
+    output_format: str = "text",
+    typical_input: str = "",
+    expected_output: str = "",
+    rai_checks: Optional[List[str]] = None
 ) -> Dict[str, Any]:
     """
     Build an evaluation prompt for a feature.
     
-    Use this tool to generate the actual evaluation prompt once you have
-    gathered all the necessary information about the feature.
-    
     Args:
-        feature_name: Name of the feature being evaluated
-        category: Feature category (summarization, auto_reply, etc.)
-        locale: Target locale (e.g., 'en-US')
+        feature_name: Name of the feature
+        feature_description: Description of the feature
+        category: Feature category
         metrics: List of metric IDs to evaluate
+        locale: Target locale
+        input_format: Input format
+        output_format: Output format
+        typical_input: Example input
+        expected_output: Example expected output
+        rai_checks: RAI checks to apply
     
     Returns:
         Dictionary with the generated prompt and metadata
     """
-    # Build metric definitions
     lang = get_language(locale)
-    metric_defs = {}
+    metric_definitions = {}
     for m_id in metrics:
         metric = get_metric(m_id)
         if metric:
-            metric_defs[m_id] = {
-                "definition": metric.get_definition(lang),
-                "weight": metric.weight,
-                "rai_tags": metric.rai_tags
-            }
+            metric_definitions[m_id] = metric.get_definition(lang)
         else:
-            metric_defs[m_id] = {
-                "definition": "(custom metric)",
-                "weight": 1.0,
-                "rai_tags": []
-            }
+            metric_definitions[m_id] = "(custom metric)"
     
-    # Generate prompt
     prompt = build_evaluation_prompt(
         feature_name=feature_name,
+        feature_description=feature_description,
         category=category,
+        metrics=metrics,
+        metric_definitions=metric_definitions,
         locale=locale,
-        metrics_used=metrics,
-        metric_defs=metric_defs
+        typical_input=typical_input,
+        expected_output=expected_output,
+        additional_context=""
     )
     
     return {
+        "evaluation_prompt": prompt,
         "feature_name": feature_name,
         "category": category,
         "locale": locale,
         "metrics_used": metrics,
-        "evaluation_prompt": prompt,
-        "prompt_length": len(prompt),
         "privacy_framework": get_privacy_framework(locale)
     }
 
 
-# =============================================================================
-# Tool 5: RAI Validation
-# =============================================================================
-
-@tool
 def validate_rai_compliance(
     metrics: List[str],
     privacy_sensitive: bool = False,
@@ -391,9 +340,6 @@ def validate_rai_compliance(
 ) -> Dict[str, Any]:
     """
     Validate that a metric selection meets RAI requirements.
-    
-    Use this tool to check if the selected metrics adequately cover
-    Responsible AI concerns for the feature.
     
     Args:
         metrics: Currently selected metrics
@@ -405,62 +351,44 @@ def validate_rai_compliance(
         Dictionary with validation results and recommendations
     """
     issues = []
+    checks_applied = []
     recommendations = []
     
-    # Check for safety metric
     if "safety" not in metrics:
         issues.append("Missing 'safety' metric - required for all GenAI features")
-        recommendations.append("Add 'safety' metric to check for harmful content")
+        recommendations.append("Add 'safety' metric")
+    else:
+        checks_applied.append("safety_check")
     
-    # Check for privacy metric if privacy-sensitive
-    if privacy_sensitive and "privacy" not in metrics:
-        issues.append("Missing 'privacy' metric for privacy-sensitive feature")
-        recommendations.append("Add 'privacy' metric to check for PII leakage")
+    if privacy_sensitive:
+        if "privacy" not in metrics:
+            issues.append("Missing 'privacy' metric for privacy-sensitive feature")
+            recommendations.append("Add 'privacy' metric")
+        else:
+            checks_applied.append("privacy_check")
     
-    # Check for groundedness if safety-critical
-    if safety_critical and "groundedness" not in metrics:
-        issues.append("Missing 'groundedness' metric for safety-critical feature")
-        recommendations.append("Add 'groundedness' metric to prevent hallucinations")
+    if safety_critical:
+        if "groundedness" not in metrics:
+            issues.append("Missing 'groundedness' metric for safety-critical feature")
+            recommendations.append("Add 'groundedness' metric")
+        else:
+            checks_applied.append("groundedness_check")
     
-    # Check for fairness
-    has_fairness = any(
-        "fairness" in m or "bias" in m 
-        for m in metrics
-    )
-    if not has_fairness:
-        recommendations.append("Consider adding fairness/bias checks")
-    
-    # Regional compliance
     framework = get_privacy_framework(locale)
-    compliance_notes = []
-    if framework == "GDPR":
-        compliance_notes.append("GDPR: Ensure data minimization and right to explanation")
-    elif framework == "CCPA":
-        compliance_notes.append("CCPA: Ensure opt-out mechanisms are respected")
-    elif framework == "PIPL":
-        compliance_notes.append("PIPL: Ensure data localization and consent requirements")
     
     return {
         "metrics_checked": metrics,
-        "is_compliant": len(issues) == 0,
+        "compliant": len(issues) == 0,
         "issues": issues,
         "recommendations": recommendations,
-        "privacy_framework": framework,
-        "compliance_notes": compliance_notes
+        "checks_applied": checks_applied,
+        "privacy_framework": framework
     }
 
 
-# =============================================================================
-# Tool 6: Code Metrics
-# =============================================================================
-
-@tool
 def get_code_metrics(category: str) -> Dict[str, Any]:
     """
     Get programmatic (code-based) metrics for a category.
-    
-    Use this tool to find deterministic metrics that can be computed
-    programmatically alongside LLM-based evaluation.
     
     Args:
         category: Feature category
@@ -474,22 +402,13 @@ def get_code_metrics(category: str) -> Dict[str, Any]:
     return {
         "category": category,
         "available_code_metrics": metrics,
-        "sample_code": sample_code,
-        "note": "Code metrics provide deterministic scores to complement LLM evaluation"
+        "code_sample": sample_code
     }
 
 
-# =============================================================================
-# Tool 7: Feature Analysis
-# =============================================================================
-
-@tool
 def analyze_feature_description(description: str) -> Dict[str, Any]:
     """
     Analyze a feature description to extract key attributes.
-    
-    Use this tool to understand what category, metrics, and constraints
-    might be appropriate for a feature based on its description.
     
     Args:
         description: Natural language description of the feature
@@ -499,64 +418,47 @@ def analyze_feature_description(description: str) -> Dict[str, Any]:
     """
     desc_lower = description.lower()
     
-    # Detect category
     category_hints = {
         "summarization": ["summarize", "summary", "condense", "brief", "tldr"],
         "auto_reply": ["reply", "respond", "email", "message", "answer"],
         "translation": ["translate", "translation", "convert language", "multilingual"],
-        "image_generation": ["generate image", "create image", "dall-e", "image generation"],
-        "image_understanding": ["describe image", "image caption", "ocr", "image understanding"],
-        "assistant": ["assistant", "chatbot", "help", "qa", "question"],
-        "classification": ["classify", "categorize", "detect", "identify"]
+        "image_generation": ["generate image", "create image", "dall-e", "image"],
+        "image_understanding": ["describe image", "caption", "ocr", "visual"],
+        "personal_assistant": ["assistant", "personal", "memory", "reasoning", "decision", "suggest", "recommend", "pattern", "habit"],
+        "classification": ["classify", "categorize", "detect", "identify", "sentiment"]
     }
     
     suggested_category = "other"
+    max_matches = 0
     for cat, hints in category_hints.items():
-        if any(hint in desc_lower for hint in hints):
+        matches = sum(1 for hint in hints if hint in desc_lower)
+        if matches > max_matches:
+            max_matches = matches
             suggested_category = cat
-            break
     
-    # Detect privacy sensitivity
     privacy_hints = ["pii", "personal", "private", "sensitive", "medical", "health", 
-                     "financial", "ssn", "email address", "phone number"]
+                     "financial", "ssn", "email address", "phone number", "user data"]
     is_privacy_sensitive = any(hint in desc_lower for hint in privacy_hints)
     
-    # Detect safety criticality
-    safety_hints = ["medical", "health", "legal", "financial", "safety-critical",
-                    "life-threatening", "diagnosis", "prescription"]
+    safety_hints = ["medical", "health", "legal", "financial", "safety",
+                    "critical", "diagnosis", "prescription"]
     is_safety_critical = any(hint in desc_lower for hint in safety_hints)
     
-    # Detect locale hints
-    locale_hints = {
-        "german": "de-DE", "germany": "de-DE",
-        "japan": "ja-JP", "japanese": "ja-JP",
-        "china": "zh-CN", "chinese": "zh-CN",
-        "spanish": "es-ES", "spain": "es-ES",
-        "mexico": "es-MX", "mexican": "es-MX",
-        "french": "fr-FR", "france": "fr-FR",
-        "brazil": "pt-BR", "brazilian": "pt-BR"
-    }
-    
-    detected_locales = []
-    for hint, locale in locale_hints.items():
-        if hint in desc_lower:
-            detected_locales.append(locale)
+    multimodal_hints = ["image", "photo", "video", "audio", "voice", "multimodal", 
+                        "calendar", "health", "location", "sensor"]
+    is_multimodal = sum(1 for hint in multimodal_hints if hint in desc_lower) >= 2
     
     return {
-        "description": description[:200] + "..." if len(description) > 200 else description,
-        "suggested_category": suggested_category,
+        "detected_category": suggested_category,
         "is_privacy_sensitive": is_privacy_sensitive,
         "is_safety_critical": is_safety_critical,
-        "detected_locales": detected_locales or ["en-US"],
+        "is_multimodal": is_multimodal,
         "recommended_metrics": get_default_metrics_for_category(suggested_category),
-        "analysis_confidence": "high" if suggested_category != "other" else "low"
+        "confidence": "high" if max_matches >= 2 else "medium" if max_matches >= 1 else "low"
     }
 
 
-# =============================================================================
-# Export all tools
-# =============================================================================
-
+# Export all functions
 ALL_TOOLS = [
     lookup_metrics,
     suggest_metrics,
