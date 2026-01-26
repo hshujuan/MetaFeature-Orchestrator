@@ -42,6 +42,13 @@ if __name__ == "__main__":
     from src.core.database import FeatureStore, PromptTemplateStore, RunStore
     from src.core.code_metrics import generate_code_metrics_sample, get_code_metrics_for_category
     from src.core.llm_client import LLMClient
+    # Try to import AI agent (optional)
+    try:
+        from src.core.ai_agent import MetaFeatureAgent
+        AI_AGENT_AVAILABLE = True
+    except ImportError:
+        MetaFeatureAgent = None
+        AI_AGENT_AVAILABLE = False
 else:
     from .schemas import (
         FeatureMetadata,
@@ -61,6 +68,13 @@ else:
     from .database import FeatureStore, PromptTemplateStore, RunStore
     from .code_metrics import generate_code_metrics_sample, get_code_metrics_for_category
     from .llm_client import LLMClient
+    # Try to import AI agent (optional)
+    try:
+        from .ai_agent import MetaFeatureAgent
+        AI_AGENT_AVAILABLE = True
+    except ImportError:
+        MetaFeatureAgent = None
+        AI_AGENT_AVAILABLE = False
 
 
 # Initialize stores
@@ -290,6 +304,64 @@ GROUPED_FEATURES: Dict[str, Dict[str, dict]] = {
             "safety_critical": True,
         },
     },
+    # ─────────────────────────────────────────────────────────────────
+    # Personal Intelligence - Advanced Reasoning & Memory
+    # ─────────────────────────────────────────────────────────────────
+    "Personal Intelligence": {
+        "Apple LifeGraph": {
+            "description": """Apple LifeGraph™ — A Private, On-Device Multimodal Memory & Reasoning Engine.
+
+Apple LifeGraph™ is an on-device, privacy-first, multimodal AI system that builds a personal causal graph of a user's life across time—events, habits, people, health, tasks, places, emotions—and uses reasoning (not just prediction) to assist with decisions.
+
+Data Sources: 📅 Calendar + 📍 Location + ❤️ Health + 📸 Photos + ✍️ Notes + 🧠 Intent → structured life understanding
+
+Key Capabilities:
+- Temporal reasoning across multiple data modalities
+- Causal inference for habit and pattern detection
+- Privacy-preserving on-device processing
+- Personalized decision support with explainable suggestions""",
+            "category": "personal_assistant",
+            "input_format": "json",
+            "output_format": "json",
+            "typical_input": '''{
+  "calendar": {"pattern": "Tue/Thu: Meetings until 8:30pm"},
+  "healthkit": {"sleep_avg_tue": "5h 12m", "knee_pain_wed": "elevated"},
+  "activity": {"soccer_practice": "Wed evenings"},
+  "historical": {"workout_skip_rate_low_sleep": 0.78}
+}''',
+            "expected_output": '''{
+  "insight": "On weeks with late Tuesday meetings, your Wednesday workout success rate drops from 71% to 22%.",
+  "suggestions": [
+    {"action": "shift_workout", "detail": "Move Wednesday workouts to Friday"},
+    {"action": "reduce_intensity", "detail": "Lower intensity after late meetings"},
+    {"action": "dismiss", "detail": "Ignore this suggestion"}
+  ],
+  "reasoning": {"causal_chain": ["late_meeting", "reduced_sleep", "fatigue", "skipped_workout"], "confidence": 0.87}
+}''',
+            "privacy_sensitive": True,
+            "safety_critical": True,
+        },
+        "Proactive Suggestions": {
+            "description": "Surface timely, context-aware suggestions based on user patterns, location, time, and upcoming events. Anticipate needs before users ask.",
+            "category": "personal_assistant",
+            "input_format": "json",
+            "output_format": "json",
+            "typical_input": '{"time": "8:45am", "location": "home", "calendar": "Meeting at 9am downtown", "traffic": "heavy", "usual_commute": "25min"}',
+            "expected_output": '{"suggestion": "Leave now to arrive on time for your 9am meeting. Traffic is heavier than usual.", "urgency": "high", "action": "show_directions"}',
+            "privacy_sensitive": True,
+            "safety_critical": False,
+        },
+        "Personal Context Memory": {
+            "description": "Maintain and query a personal knowledge graph of user preferences, relationships, and past interactions to provide contextual assistance.",
+            "category": "personal_assistant",
+            "input_format": "text",
+            "output_format": "json",
+            "typical_input": "What restaurant did I go to with Sarah last month?",
+            "expected_output": '{"answer": "You went to Chez Marie on December 15th with Sarah.", "source": ["calendar_event", "photos_location"], "confidence": 0.94}',
+            "privacy_sensitive": True,
+            "safety_critical": False,
+        },
+    },
     "Custom": {}
 }
 
@@ -359,6 +431,69 @@ def get_locale_info_text(locale: str) -> str:
     return f"""**{locale}**: {formality.capitalize()} tone, {directness} feedback, {framework} privacy framework
     
 *Tone guidance: {tone[:100]}...*"""
+
+
+def detect_feature_complexity(
+    description: str,
+    category: str,
+    metrics: List[str]
+) -> tuple[bool, str]:
+    """
+    Detect if a feature is complex enough to warrant AI agent processing.
+    
+    Returns:
+        (is_complex, reason)
+    """
+    reasons = []
+    complexity_score = 0
+    
+    desc_lower = description.lower()
+    
+    # Check for multimodal indicators
+    multimodal_keywords = ["multimodal", "image", "photo", "video", "audio", "voice", 
+                          "calendar", "health", "location", "sensor", "biometric"]
+    multimodal_count = sum(1 for kw in multimodal_keywords if kw in desc_lower)
+    if multimodal_count >= 2:
+        complexity_score += 2
+        reasons.append(f"multimodal ({multimodal_count} modalities)")
+    
+    # Check for novel/advanced concepts
+    advanced_keywords = ["reasoning", "causal", "temporal", "graph", "memory", "context",
+                        "personalization", "adaptive", "learning", "prediction", "inference",
+                        "private", "on-device", "federated", "edge"]
+    advanced_count = sum(1 for kw in advanced_keywords if kw in desc_lower)
+    if advanced_count >= 2:
+        complexity_score += 2
+        reasons.append(f"advanced concepts ({advanced_count})")
+    
+    # Check description length (complex features have detailed descriptions)
+    if len(description) > 500:
+        complexity_score += 1
+        reasons.append("detailed description")
+    
+    # Check if category is "other" or "generic" (not fitting standard templates)
+    if category.lower() in ["other", "generic", ""]:
+        complexity_score += 1
+        reasons.append("novel category")
+    
+    # Check for privacy/safety critical indicators
+    critical_keywords = ["medical", "health", "financial", "legal", "safety-critical",
+                        "privacy-first", "sensitive", "personal data", "pii"]
+    if any(kw in desc_lower for kw in critical_keywords):
+        complexity_score += 1
+        reasons.append("privacy/safety critical")
+    
+    # Check for integration complexity
+    integration_keywords = ["integrate", "connect", "sync", "api", "cross-platform",
+                          "ecosystem", "multiple sources", "data fusion"]
+    if any(kw in desc_lower for kw in integration_keywords):
+        complexity_score += 1
+        reasons.append("integration complexity")
+    
+    is_complex = complexity_score >= 3
+    reason = f"Complexity score: {complexity_score}/8 ({', '.join(reasons)})" if reasons else "Standard feature"
+    
+    return is_complex, reason
 
 
 def get_locale_display_choices() -> List[tuple]:
@@ -501,17 +636,19 @@ def generate_prompt(
     check_fairness: bool,
     check_transparency: bool,
     rai_additional_notes: str,
-    locale: str = "en-US"
-) -> tuple[str, str, str, str, str, str]:
+    locale: str = "en-US",
+    use_ai_agent: str = "auto"  # "auto", "always", "never"
+) -> tuple[str, str, str, str, str, str, str]:
     """
     Generate an evaluation prompt using the agent.
     
     Args:
         locale: Full locale code (e.g., 'en-US', 'zh-CN', 'es-MX')
+        use_ai_agent: "auto" (detect complexity), "always" (force AI), "never" (legacy only)
     
     Returns:
         Tuple of (evaluation_prompt, metric_definitions, suggested_metrics, 
-                  metrics_used, json_spec, status_message)
+                  metrics_used, json_spec, code_metrics, status_message)
     """
     # Handle None values
     feature_name = feature_name or ""
@@ -535,7 +672,108 @@ def generate_prompt(
     if not selected_metrics:
         return "", "", "", "", "", "", "❌ Please select at least one quality metric"
     
+    # Determine whether to use AI agent
+    use_ai = False
+    complexity_reason = ""
+    
+    if use_ai_agent == "always" and AI_AGENT_AVAILABLE:
+        use_ai = True
+        complexity_reason = "AI Agent mode: always"
+    elif use_ai_agent == "auto" and AI_AGENT_AVAILABLE:
+        is_complex, complexity_reason = detect_feature_complexity(
+            feature_description, category, selected_metrics
+        )
+        use_ai = is_complex
+    # "never" or AI_AGENT_AVAILABLE = False → use_ai stays False
+    
     try:
+        if use_ai and AI_AGENT_AVAILABLE and MetaFeatureAgent is not None:
+            # === AI AGENT PATH ===
+            logger.info(f"Using AI Agent for complex feature: {complexity_reason}")
+            
+            ai_agent = MetaFeatureAgent()
+            
+            # Build a detailed request for the AI agent
+            ai_request = f"""Generate a comprehensive evaluation prompt for this feature:
+
+**Feature Name:** {feature_name.strip()}
+**Description:** {feature_description.strip()}
+**Category:** {category}
+**Target Locale:** {locale}
+
+**Input Format:** {input_format}
+**Output Format:** {output_format}
+
+**Example Input:** {typical_input_example[:500] if typical_input_example else 'Not provided'}
+**Expected Output:** {expected_output_example[:500] if expected_output_example else 'Not provided'}
+
+**Selected Metrics:** {', '.join(selected_metrics)}
+**Additional Context:** {additional_context if additional_context else 'None'}
+
+**RAI Requirements:**
+- Safety checks: {check_safety}
+- Privacy checks: {check_privacy}  
+- Fairness checks: {check_fairness}
+- Transparency: {check_transparency}
+- Additional notes: {rai_additional_notes if rai_additional_notes else 'None'}
+
+Please:
+1. Analyze this feature and suggest any additional metrics that would be valuable
+2. Identify any privacy/safety concerns specific to this feature
+3. Generate a comprehensive evaluation prompt with detailed rubrics
+4. Include locale-specific considerations for {locale}
+"""
+            
+            response = ai_agent.chat(ai_request)
+            
+            if response.success and response.message:
+                evaluation_prompt = response.message
+                
+                # Try to extract structured prompt if available
+                if response.evaluation_prompt:
+                    evaluation_prompt = response.evaluation_prompt
+                
+                # Format outputs
+                metric_defs = format_metric_definitions(selected_metrics, locale)
+                
+                cat_str = category.lower() if category else "other"
+                suggested = suggest_additional_metrics(cat_str, selected_metrics)
+                suggested_str = ", ".join(suggested) if suggested else "(AI Agent may suggest more in prompt)"
+                
+                metrics_used_str = ", ".join(selected_metrics)
+                
+                # Create JSON spec
+                import uuid
+                feature_id = str(uuid.uuid4())
+                json_spec = json.dumps({
+                    "feature_id": feature_id,
+                    "feature_name": feature_name.strip(),
+                    "category": category,
+                    "metrics": selected_metrics,
+                    "locale": locale,
+                    "privacy_framework": get_privacy_framework(locale),
+                    "generated_by": "ai_agent",
+                    "complexity_reason": complexity_reason
+                }, indent=2)
+                
+                # Generate code-based metrics sample
+                code_metrics_sample = generate_code_metrics_sample(cat_str)
+                
+                return (
+                    evaluation_prompt,
+                    metric_defs,
+                    suggested_str,
+                    metrics_used_str,
+                    json_spec,
+                    code_metrics_sample,
+                    f"✅ Generated with **AI Agent** ({complexity_reason})"
+                )
+            else:
+                # AI agent failed, fall back to legacy
+                logger.warning(f"AI Agent failed, falling back to legacy: {response.message}")
+                # Continue to legacy path below
+        
+        # === LEGACY AGENT PATH ===
         # Build quality metrics
         quality_metrics = []
         for metric_id in selected_metrics:
@@ -649,6 +887,13 @@ def generate_prompt(
         cat_str = category.lower() if category else "other"
         code_metrics_sample = generate_code_metrics_sample(cat_str)
         
+        # Build status message
+        status_msg = "✅ Generated with **Template Agent** (deterministic)"
+        if use_ai_agent == "auto" and AI_AGENT_AVAILABLE:
+            status_msg += f" — Feature did not meet complexity threshold"
+        elif not AI_AGENT_AVAILABLE:
+            status_msg += " — AI Agent not available (install agent-framework)"
+        
         return (
             evaluation_prompt,
             metric_defs,
@@ -656,7 +901,7 @@ def generate_prompt(
             metrics_used_str,
             json_spec,
             code_metrics_sample,
-            "✅ Evaluation prompt generated successfully!"
+            status_msg
         )
         
     except Exception as e:
@@ -1178,7 +1423,7 @@ def create_app() -> gr.Blocks:
                     with gr.Row():
                         new_category = gr.Dropdown(
                             label="Category",
-                            choices=["summarization", "auto_reply", "translation", "classification", "extraction", "generation", "image_generation", "image_editing", "image_understanding", "image_safety", "generic"],
+                            choices=["summarization", "auto_reply", "translation", "classification", "extraction", "generation", "image_generation", "image_editing", "image_understanding", "image_safety", "personal_assistant", "generic"],
                             value="generic"
                         )
                         new_input_format = gr.Dropdown(
@@ -1226,7 +1471,7 @@ def create_app() -> gr.Blocks:
                                 "auto_reply", "summarization", "translation",
                                 "classification", "extraction", "generation",
                                 "image_generation", "image_editing", "image_understanding", "image_safety",
-                                "generic"
+                                "personal_assistant", "generic"
                             ],
                             value="generic"
                         )
@@ -1364,7 +1609,21 @@ def create_app() -> gr.Blocks:
             with gr.Tab("🚀 Generate"):
                 gr.Markdown("### Generate Evaluation Prompt")
                 
-                generate_btn = gr.Button("🎯 Generate Evaluation Prompt", variant="primary", size="lg")
+                with gr.Row():
+                    with gr.Column(scale=2):
+                        generate_btn = gr.Button("🎯 Generate Evaluation Prompt", variant="primary", size="lg")
+                    with gr.Column(scale=1):
+                        ai_agent_mode = gr.Radio(
+                            choices=[
+                                ("🤖 Auto (detect complexity)", "auto"),
+                                ("⚡ Always use AI Agent", "always"),
+                                ("📋 Template only", "never")
+                            ],
+                            value="auto",
+                            label="Generation Mode",
+                            info="AI Agent provides better results for complex/novel features" if AI_AGENT_AVAILABLE else "AI Agent not available - install agent-framework",
+                            interactive=AI_AGENT_AVAILABLE
+                        )
                 
                 status_message = gr.Markdown("")
                 
@@ -1613,7 +1872,7 @@ def create_app() -> gr.Blocks:
             typical_input_val, expected_output_val,
             selected_metrics_val, additional_context_val,
             check_safety_val, check_privacy_val, check_fairness_val, check_transparency_val,
-            rai_notes_val, locale_val
+            rai_notes_val, locale_val, ai_agent_mode_val
         ):
             """Generate prompt and return extra copy for simulation tab, also update visibility"""
             result = generate_prompt(
@@ -1622,7 +1881,7 @@ def create_app() -> gr.Blocks:
                 typical_input_val, expected_output_val,
                 selected_metrics_val, additional_context_val,
                 check_safety_val, check_privacy_val, check_fairness_val, check_transparency_val,
-                rai_notes_val, locale_val
+                rai_notes_val, locale_val, ai_agent_mode_val
             )
             # result is (evaluation_prompt, metric_defs, suggested_str, metrics_used_str, json_spec, code_metrics_sample, status_message)
             evaluation_prompt = result[0]
@@ -1665,7 +1924,7 @@ def create_app() -> gr.Blocks:
                 typical_input, expected_output,
                 selected_metrics, additional_context,
                 check_safety, check_privacy, check_fairness, check_transparency,
-                rai_notes, locale_dropdown
+                rai_notes, locale_dropdown, ai_agent_mode
             ],
             outputs=[output_prompt, metric_defs_output, suggested_metrics_output, used_metrics_output, output_json, code_metrics_output, status_message, sim_generated_prompt_display, sim_category_notice, sim_prompt_notice, sim_content]
         )

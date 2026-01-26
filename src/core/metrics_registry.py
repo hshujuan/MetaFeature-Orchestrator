@@ -548,6 +548,60 @@ METRICS_REGISTRY: Dict[str, MetricDefinition] = {
         weight=1.0,
         is_primary=True,
     ),
+    # ─────────────────────────────────────────────────────────────────
+    # Personal Assistant Specific Metrics
+    # ─────────────────────────────────────────────────────────────────
+    "reasoning_quality": MetricDefinition(
+        name="reasoning_quality",
+        definitions={
+            "en": "The output demonstrates sound logical reasoning, with clear causal chains, valid inferences, and appropriate confidence levels. Conclusions follow logically from the provided evidence.",
+            "zh-Hans": "输出展示了合理的逻辑推理，具有清晰的因果链、有效的推断和适当的置信度。结论从提供的证据中合乎逻辑地得出。",
+            "ja": "出力が明確な因果連鎖、有効な推論、適切な信頼度を持つ健全な論理的推論を示している。結論は提供された証拠から論理的に導かれる。",
+            "ko": "출력물이 명확한 인과 관계, 유효한 추론, 적절한 신뢰 수준을 갖춘 건전한 논리적 추론을 보여준다. 결론이 제공된 증거로부터 논리적으로 도출된다.",
+            "de": "Die Ausgabe zeigt fundiertes logisches Denken mit klaren Kausalketten, gültigen Schlussfolgerungen und angemessenen Konfidenzwerten. Schlussfolgerungen folgen logisch aus den bereitgestellten Beweisen.",
+            "fr": "La sortie démontre un raisonnement logique solide, avec des chaînes causales claires, des inférences valides et des niveaux de confiance appropriés. Les conclusions découlent logiquement des preuves fournies.",
+            "es": "La salida demuestra un razonamiento lógico sólido, con cadenas causales claras, inferencias válidas y niveles de confianza apropiados. Las conclusiones se derivan lógicamente de la evidencia proporcionada.",
+            "pt": "A saída demonstra raciocínio lógico sólido, com cadeias causais claras, inferências válidas e níveis de confiança apropriados. As conclusões seguem logicamente das evidências fornecidas.",
+        },
+        applies_to=["personal_assistant", "assistant"],
+        rai_tags=["transparency", "explainability"],
+        weight=1.0,
+        is_primary=True,
+    ),
+    "personalization_accuracy": MetricDefinition(
+        name="personalization_accuracy",
+        definitions={
+            "en": "The output correctly incorporates user-specific preferences, history, patterns, and context. Personalized recommendations are relevant and based on actual user data, not assumptions.",
+            "zh-Hans": "输出正确地融入了用户特定的偏好、历史记录、模式和上下文。个性化推荐是相关的，基于实际用户数据，而非假设。",
+            "ja": "出力がユーザー固有の好み、履歴、パターン、コンテキストを正しく取り入れている。パーソナライズされた推奨は、仮定ではなく実際のユーザーデータに基づいて関連性がある。",
+            "ko": "출력물이 사용자 고유의 선호도, 이력, 패턴 및 컨텍스트를 올바르게 통합한다. 개인화된 추천은 가정이 아닌 실제 사용자 데이터를 기반으로 관련성이 있다.",
+            "de": "Die Ausgabe integriert korrekt benutzerspezifische Präferenzen, Verlauf, Muster und Kontext. Personalisierte Empfehlungen sind relevant und basieren auf tatsächlichen Benutzerdaten, nicht auf Annahmen.",
+            "fr": "La sortie intègre correctement les préférences, l'historique, les modèles et le contexte spécifiques à l'utilisateur. Les recommandations personnalisées sont pertinentes et basées sur des données utilisateur réelles, pas sur des suppositions.",
+            "es": "La salida incorpora correctamente las preferencias, historial, patrones y contexto específicos del usuario. Las recomendaciones personalizadas son relevantes y se basan en datos reales del usuario, no en suposiciones.",
+            "pt": "A saída incorpora corretamente preferências, histórico, padrões e contexto específicos do usuário. Recomendações personalizadas são relevantes e baseadas em dados reais do usuário, não em suposições.",
+        },
+        applies_to=["personal_assistant"],
+        rai_tags=["privacy", "accuracy"],
+        weight=1.0,
+        is_primary=True,
+    ),
+    "temporal_accuracy": MetricDefinition(
+        name="temporal_accuracy",
+        definitions={
+            "en": "The output correctly interprets and uses temporal information (dates, times, durations, sequences, patterns over time). Time-based reasoning and predictions are chronologically sound.",
+            "zh-Hans": "输出正确解释和使用时间信息（日期、时间、持续时间、序列、随时间变化的模式）。基于时间的推理和预测在时间顺序上是合理的。",
+            "ja": "出力が時間情報（日付、時刻、期間、シーケンス、時間経過のパターン）を正しく解釈し使用している。時間ベースの推論と予測は時系列的に妥当である。",
+            "ko": "출력물이 시간 정보(날짜, 시간, 기간, 순서, 시간에 따른 패턴)를 올바르게 해석하고 사용한다. 시간 기반 추론 및 예측이 시간순으로 타당하다.",
+            "de": "Die Ausgabe interpretiert und verwendet zeitliche Informationen (Daten, Zeiten, Dauern, Sequenzen, Muster im Zeitverlauf) korrekt. Zeitbasierte Schlussfolgerungen und Vorhersagen sind chronologisch stimmig.",
+            "fr": "La sortie interprète et utilise correctement les informations temporelles (dates, heures, durées, séquences, modèles dans le temps). Le raisonnement et les prédictions basés sur le temps sont chronologiquement cohérents.",
+            "es": "La salida interpreta y usa correctamente la información temporal (fechas, horas, duraciones, secuencias, patrones a lo largo del tiempo). El razonamiento y las predicciones basadas en el tiempo son cronológicamente sólidos.",
+            "pt": "A saída interpreta e usa corretamente informações temporais (datas, horários, durações, sequências, padrões ao longo do tempo). Raciocínio e previsões baseados em tempo são cronologicamente sólidos.",
+        },
+        applies_to=["personal_assistant"],
+        rai_tags=["accuracy"],
+        weight=0.9,
+        is_primary=True,
+    ),
 }
 
 
@@ -560,6 +614,7 @@ DEFAULT_METRICS_BY_CATEGORY: Dict[str, List[str]] = {
     "auto_reply": ["relevance", "tone", "fluency", "brevity", "safety", "privacy", "format_compliance", "cultural_appropriateness", "linguistic_naturalness"],
     "translation": ["faithfulness", "accuracy", "fluency", "safety", "privacy", "format_compliance", "cultural_appropriateness", "localization_quality", "linguistic_naturalness"],
     "assistant": ["relevance", "faithfulness", "groundedness", "tone", "safety", "privacy", "format_compliance", "cultural_appropriateness", "local_relevance"],
+    "personal_assistant": ["relevance", "faithfulness", "groundedness", "reasoning_quality", "privacy", "safety", "personalization_accuracy", "temporal_accuracy", "format_compliance", "cultural_appropriateness"],
     "content_generation": ["prompt_adherence", "creativity", "coherence", "fluency", "safety", "format_compliance", "cultural_appropriateness", "local_relevance", "stereotype_avoidance"],
     "classification": ["accuracy", "format_compliance", "safety"],
     "extraction": ["accuracy", "ocr_accuracy", "format_compliance", "safety", "privacy"],

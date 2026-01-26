@@ -33,14 +33,17 @@ MetaFeature-Orchestrator is an intelligent evaluation prompt generator that crea
 MetaFeature-Orchestrator/
 ├── src/
 │   ├── core/                    # Main application modules
-│   │   ├── agent.py             # FeaturePromptWriterAgent - core orchestration
+│   │   ├── agent.py             # FeaturePromptWriterAgent - deterministic pipeline
+│   │   ├── ai_agent.py          # MetaFeatureAgent - AI-powered agent (Agent Framework)
+│   │   ├── agent_tools.py       # 11 tools for the AI agent
+│   │   ├── workflows.py         # Multi-step workflows with human-in-the-loop
 │   │   ├── app.py               # Gradio web application
 │   │   ├── code_metrics.py      # Programmatic metrics (ROUGE, BLEU, BERTScore)
 │   │   ├── database.py          # SQLite persistence
 │   │   ├── image_generator.py   # DALL-E 3 image generation
 │   │   ├── llm_client.py        # Azure OpenAI / OpenAI client
 │   │   ├── metrics_registry.py  # 20+ metrics with i18n support
-│   │   ├── prompt_templates.py  # Category-specific templates with bilingual support
+│   │   ├── prompt_templates.py  # Category-specific templates with locale support
 │   │   ├── schemas.py           # Pydantic models and dataclasses
 │   │   └── __init__.py
 │   ├── data/                    # SQLite database
@@ -155,6 +158,57 @@ print(result.evaluation_prompt)
 print(f"Privacy framework: {result.privacy_framework}")  # e.g., CCPA, GDPR
 ```
 
+### AI Agent (Advanced)
+
+For complex features, use the AI-powered agent built on **Microsoft Agent Framework**:
+
+```bash
+# Install Agent Framework (optional)
+pip install agent-framework --pre
+```
+
+```python
+from src.core.ai_agent import MetaFeatureAgent
+
+# Natural language request - the agent figures out the rest
+agent = MetaFeatureAgent()
+response = agent.chat(
+    "I need an evaluation prompt for a medical document summarizer "
+    "that will be used by doctors in Germany. It needs to be very "
+    "careful about accuracy and patient privacy."
+)
+
+print(response.evaluation_prompt)
+```
+
+The AI agent can:
+- Understand natural language feature descriptions
+- Dynamically select appropriate metrics
+- Handle complex multi-locale requirements
+- Validate RAI compliance automatically
+- Search for similar existing features
+
+### Workflows for Complex Features
+
+For multi-locale or safety-critical features:
+
+```python
+from src.core.workflows import WorkflowRunner
+
+runner = WorkflowRunner()
+result = runner.run(
+    feature_name="Medical Document Summarizer",
+    feature_description="Summarize patient records for physicians",
+    target_locales=["de-DE", "ja-JP", "en-US"],
+    safety_critical=True
+)
+
+# Get prompts for each locale
+for locale, prompt in result.prompts.items():
+    print(f"--- {locale} ---")
+    print(prompt[:200])
+```
+
 ## Available Metrics
 
 ### Text Metrics
@@ -205,6 +259,9 @@ print(f"Privacy framework: {result.privacy_framework}")  # e.g., CCPA, GDPR
 - `openai>=1.0.0` - OpenAI/Azure OpenAI client
 - `python-dotenv>=1.0.0` - Environment variable management
 - `httpx>=0.25.0` - HTTP client for image generation
+
+### AI Agent (Optional)
+- `agent-framework` - Microsoft Agent Framework for advanced agentic capabilities
 
 ### Code-Based Evaluation
 - `rouge-score>=0.1.2` - ROUGE metrics for summarization
