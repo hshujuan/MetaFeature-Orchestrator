@@ -189,6 +189,20 @@ The AI agent has access to these tools via `@ai_function` decorator:
 | `suggest_metrics` | Get recommendations for additional metrics | Suggested metrics list |
 | `recommend_metrics` | **Intelligent** metric selection with explanations | Prioritized metrics with rationale |
 | `get_locale_info` | Get cultural/regulatory info for a locale | Cultural context, tone guidance, privacy framework |
+
+#### 📌 `suggest_metrics` vs `recommend_metrics` Clarification
+
+These two tools serve different purposes and should be used in different scenarios:
+
+| Aspect | `suggest_metrics` | `recommend_metrics` |
+|--------|-------------------|---------------------|
+| **Analysis Type** | Simple rule-based lookup | Semantic analysis of feature description |
+| **Input Required** | `category` + `current_metrics` | `feature_name` + `description` + `category` |
+| **Output Format** | Flat list with generic reason | Prioritized tiers with detailed explanations |
+| **Priority Levels** | None | Mandatory → Critical → Important |
+| **Explanations** | Single generic reason for all | Per-metric explanation of relevance |
+| **Best For** | Quick suggestions when category is known | Comprehensive metric planning for new features |
+| **LLM Required** | No (rule-based) | No (rule-based analysis) |
 | `validate_rai_compliance` | Check if metrics meet RAI requirements | Compliance status, issues, recommendations |
 | `build_prompt` | Generate the v2.1 evaluation prompt | Complete evaluation prompt string (mandatory) |
 | `get_code_metrics` | Get programmatic metrics sample | Code sample for ROUGE, BLEU, etc. |

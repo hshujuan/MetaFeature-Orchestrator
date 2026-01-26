@@ -271,6 +271,16 @@ The AI Agent has access to 9 intelligent tools:
 | `suggest_metrics` | Get additional metric suggestions based on context |
 | `recommend_metrics` | **Intelligent** metric recommendation with detailed explanations |
 | `get_locale_info` | Get cultural, regulatory, and formatting info for a locale |
+
+> **📌 `suggest_metrics` vs `recommend_metrics`**: These two tools serve different purposes:
+> 
+> | Aspect | `suggest_metrics` | `recommend_metrics` |
+> |--------|-------------------|---------------------|
+> | **Analysis** | Simple rule-based | Semantic analysis of feature description |
+> | **Input** | Category + current metrics | Feature name + description + category |
+> | **Output** | Flat list of suggestions | Prioritized tiers (Mandatory → Critical → Important) |
+> | **Explanations** | Generic reason | Detailed per-metric explanations |
+> | **Use Case** | Quick suggestions | Comprehensive metric planning |
 | `validate_rai_compliance` | Check if metrics meet RAI requirements |
 | `build_prompt` | Generate the complete evaluation prompt (mandatory for consistent output) |
 | `get_code_metrics` | Get programmatic metric code samples |

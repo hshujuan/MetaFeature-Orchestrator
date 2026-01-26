@@ -202,6 +202,16 @@ You are an **AI-powered expert evaluator**...
 | `suggest_metrics` | Get additional suggestions | Suggested metrics based on context |
 | `recommend_metrics` | **Intelligent analysis** | Prioritized metrics with explanations |
 | `get_locale_info` | Cultural/regulatory info | Privacy framework, tone guidance, cultural context |
+
+### 📌 `suggest_metrics` vs `recommend_metrics`
+
+| Aspect | `suggest_metrics` | `recommend_metrics` |
+|--------|-------------------|---------------------|
+| **Analysis** | Rule-based lookup | Semantic feature analysis |
+| **Input** | Category + current metrics | Feature name + description + category |
+| **Output** | Flat list | Prioritized tiers (Mandatory/Critical/Important) |
+| **Explanations** | Generic reason | Detailed per-metric rationale |
+| **Use Case** | Quick category-based suggestions | Comprehensive metric planning |
 | `validate_rai_compliance` | Check RAI requirements | Compliance status and issues |
 | `build_prompt` | Generate evaluation prompt | Complete prompt with timestamp |
 | `get_code_metrics` | Code metric samples | Python code for ROUGE/BLEU/etc. |
