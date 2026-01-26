@@ -210,9 +210,9 @@ flowchart LR
 | `_apply_rai_constraints()` | Auto-adds safety/privacy metrics | Lines 122-165 |
 | `_metadata_to_spec()` | Converts Pydantic model to dataclass | Lines 167-181 |
 
-#### AI Agent Mode (`MetaFeatureAgent` v2.0)
+#### AI Agent Mode (`MetaFeatureAgent` v2.1)
 
-The adaptive AI agent built on **Microsoft Agent Framework** with 7 tools:
+The adaptive AI agent built on **Microsoft Agent Framework** with 9 tools:
 
 ```mermaid
 flowchart LR
@@ -220,23 +220,25 @@ flowchart LR
         NL[Natural Language<br/>Feature Description]
     end
     
-    subgraph AIAgent["MetaFeatureAgent v2.0"]
+    subgraph AIAgent["MetaFeatureAgent v2.1"]
         ANALYZE[analyze_feature_description]
         LOOKUP[lookup_metrics]
         SUGGEST[suggest_metrics]
+        RECOMMEND[recommend_metrics]
         LOCALE_INFO[get_locale_info]
         RAI[validate_rai_compliance]
         BUILD[build_prompt]
     end
     
     subgraph Output
-        PO[v2.0 Evaluation Prompt]
+        PO[v2.1 Evaluation Prompt]
     end
     
     NL --> ANALYZE
     ANALYZE --> LOOKUP
     LOOKUP --> SUGGEST
-    SUGGEST --> LOCALE_INFO
+    SUGGEST --> RECOMMEND
+    RECOMMEND --> LOCALE_INFO
     LOCALE_INFO --> RAI
     RAI --> BUILD
     BUILD --> PO
@@ -247,12 +249,22 @@ flowchart LR
 | Tool | Purpose |
 |------|---------|
 | `lookup_metrics` | Find metrics for a category |
-| `suggest_metrics` | Recommend additional metrics |
-| `get_locale_info` | Get cultural/regulatory info |
-| `validate_rai_compliance` | Check RAI requirements |
-| `build_prompt` | Generate v2.0 prompt |
-| `get_code_metrics` | Get programmatic metrics sample |
-| `analyze_feature_description` | Extract attributes from natural language |
+| `suggest_metrics` | Get additional metric suggestions based on context |
+| `recommend_metrics` | **Intelligent** metric recommendation with detailed explanations |
+| `get_locale_info` | Get cultural/regulatory info for a locale |
+| `validate_rai_compliance` | Check if metrics meet RAI requirements |
+| `build_prompt` | Generate the v2.1 evaluation prompt (mandatory for consistent output) |
+| `get_code_metrics` | Get programmatic metric code samples |
+| `analyze_feature_description` | Extract attributes from natural language descriptions |
+
+> **📌 `suggest_metrics` vs `recommend_metrics`**: These two tools serve different purposes:
+> | Aspect | `suggest_metrics` | `recommend_metrics` |
+> |--------|-------------------|---------------------|
+> | **Analysis** | Simple rule-based | Semantic analysis of feature description |
+> | **Input** | Category + current metrics | Feature name + description + category |
+> | **Output** | Flat list of suggestions | Prioritized tiers (Mandatory → Critical → Important) |
+> | **Explanations** | Generic reason | Detailed per-metric explanations |
+> | **Use Case** | Quick suggestions | Comprehensive metric planning |
 
 **RAI Auto-Injection Logic** (source: [agent.py#L122-L165](../src/core/agent.py)):
 - **Safety metric**: Always added for all GenAI features
@@ -659,39 +671,77 @@ erDiagram
 
 **Database Location**: `src/data/metafeature.db`
 
+> **📌 `group_name` vs `category`**: These fields serve different purposes:
+> | Field | Purpose | Example Values |
+> |-------|---------|----------------|
+> | **`group_name`** | UI organization - How features appear in dropdown menus | `"Summarization"`, `"Image Understanding"` |
+> | **`category`** | Evaluation logic - Which template and metrics to apply | `"summarization"`, `"classification"` |
+> 
+> The same **category** can appear in different **groups** (e.g., "Visual Look Up" is in "Image Understanding" group but uses "classification" category).
+
 ---
 
 ### 3.7 Web UI (`app.py`)
 
-The Gradio application provides a **tabbed interface** for evaluation prompt generation:
+The Gradio application provides a **tabbed interface** for evaluation prompt generation and simulation:
 
-```mermaid
-flowchart TB
-    subgraph GradioApp["Gradio Web Application"]
-        TAB1["⚡ Quick Start Tab"]
-        TAB2["📝 Feature Definition Tab"]
-        TAB3["📊 Quality Metrics Tab"]
-        TAB4["🛡️ Responsible AI Tab"]
-        TAB5["🚀 Generate Tab"]
-    end
-    
-    subgraph GROUPED_FEATURES["Predefined Templates"]
-        G1[Summarization]
-        G2[Auto Reply]
-        G3[Translation]
-        G4[Classification]
-        G5[Image Understanding]
-        G6[Image Generation]
-        G7[Image Editing]
-        G8[Image Safety]
-    end
-    
-    TAB1 --> GROUPED_FEATURES
-    TAB2 --> Agent
-    TAB3 --> MetricsRegistry
-    TAB4 --> RAIConstraints
-    TAB5 --> PromptOutput
 ```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                         Gradio Web Application                                  │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│  📝 Feature Definition │ 📊 Quality Metrics │ 🛡️ RAI │ 🚀 Generate │ 🧪 Simulation │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  📝 Feature Definition          │  🚀 Generate                                  │
+│  ├── Feature Group dropdown     │  ├── Generation Mode (4 options)              │
+│  ├── Feature Name dropdown      │  │   • Auto (default)                         │
+│  ├── Description editor         │  │   • Always AI Agent                        │
+│  ├── Category selector          │  │   • Template only                          │
+│  └── I/O format options         │  │   • Both (comparison)                      │
+│                                 │  ├── Locale selector (20+ BCP 47)             │
+│  📊 Quality Metrics             │  └── Output tabs:                             │
+│  ├── Metric checkboxes          │      ├── 📝 Prompt-Based Evaluation           │
+│  └── Custom metric editor       │      └── 💻 Code-Based Metrics                │
+│                                 │                                               │
+│  🛡️ Responsible AI              │  🧪 Simulation                                │
+│  ├── Privacy sensitive toggle   │  ├── Scenario selector                        │
+│  ├── Safety critical toggle     │  ├── Original Input display                   │
+│  └── RAI constraints            │  ├── AI Output (Good/Bad examples)            │
+│                                 │  ├── Run Simulation button                    │
+│                                 │  └── Results tabs:                            │
+│                                 │      ├── 📝 Generated Prompt                  │
+│                                 │      ├── 📋 Full Evaluation Prompt            │
+│                                 │      ├── 🤖 LLM Evaluation Results            │
+│                                 │      └── 📊 Code Metrics Results              │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### 4 Generation Modes
+
+| Mode | Description | Use Case |
+|------|-------------|----------|
+| **Auto** (default) | System decides based on context | General use |
+| **Always AI Agent** | Forces AI Agent mode | When you want adaptive analysis |
+| **Template only** | Uses deterministic templates | Fast, consistent output |
+| **Both (comparison)** | Side-by-side comparison with progressive loading | Compare Template vs AI Agent |
+
+#### Simulation Tab
+
+The **🧪 Simulation** tab allows testing generated prompts with real AI outputs:
+
+| Scenario | Category | Description |
+|----------|----------|-------------|
+| 📰 News Article Summarization | `summarization` | Test summary evaluation with good/bad examples |
+| 📧 Professional Email Reply | `auto_reply` | Test customer service response evaluation |
+
+**Simulation Workflow:**
+1. Generate an evaluation prompt in the **🚀 Generate** tab
+2. Go to **🧪 Simulation** tab
+3. Select a scenario (or use custom input)
+4. Choose Good or Bad AI output example
+5. Click **Run Simulation** to see:
+   - LLM-based evaluation with scores and rationale
+   - Code-based metrics (ROUGE, readability, etc.)
 
 **Predefined Feature Groups** (from [app.py#L70-L320](../src/core/app.py)):
 
