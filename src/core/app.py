@@ -754,9 +754,11 @@ Please:
                     "rai checks applied", "**rai checks"
                 ]
                 prompt_indicators = [
-                    "# evaluation prompt", "## role", "## evaluator role", 
+                    "# evaluation prompt", "# 🤖 ai agent evaluation prompt",
+                    "## role", "## evaluator role", "## 1. evaluator role",
                     "you are an expert evaluator", "you are an evaluator",
-                    "**target language:**", "**locale:**"
+                    "you are an **ai-powered expert evaluator",
+                    "**target language:**", "**locale:**", "**version:** 2.1"
                 ]
                 
                 has_summary_indicator = any(ind in prompt_lower for ind in summary_indicators)
@@ -998,10 +1000,233 @@ Please:
         return "", "", "", "", "", "", f"❌ Error generating prompt: {str(e)}"
 
 
+def generate_both_prompts_streaming(
+    feature_name: str,
+    feature_description: str,
+    category: str,
+    input_format: str,
+    output_format: str,
+    typical_input_example: str,
+    expected_output_example: str,
+    selected_metrics: List[str],
+    additional_context: str,
+    check_safety: bool,
+    check_privacy: bool,
+    check_fairness: bool,
+    check_transparency: bool,
+    rai_additional_notes: str,
+    locale: str = "en-US"
+):
+    """
+    Generator that yields Template output immediately, then AI Agent output.
+    
+    Yields tuples of (template_prompt, template_json, agent_prompt, agent_json, status)
+    """
+    # Generate Template output FIRST (fast)
+    template_result = generate_prompt(
+        feature_name, feature_description, category,
+        input_format, output_format,
+        typical_input_example, expected_output_example,
+        selected_metrics, additional_context,
+        check_safety, check_privacy, check_fairness, check_transparency,
+        rai_additional_notes, locale, use_ai_agent="never"
+    )
+    
+    template_prompt = template_result[0]
+    template_json = template_result[4]
+    template_status = template_result[6]
+    
+    # Yield Template result immediately with loading placeholder for AI
+    yield (
+        template_prompt,
+        template_json,
+        "⏳ **Generating AI Agent prompt...**\n\nPlease wait while the AI Agent analyzes your feature and generates an optimized evaluation prompt.",
+        "{}",
+        f"""### ⚖️ Side-by-Side Comparison Mode
+
+**Left (Template):** {template_status}
+
+**Right (AI Agent):** ⏳ Generating..."""
+    )
+    
+    # Now generate AI Agent output (slower)
+    agent_result = generate_prompt(
+        feature_name, feature_description, category,
+        input_format, output_format,
+        typical_input_example, expected_output_example,
+        selected_metrics, additional_context,
+        check_safety, check_privacy, check_fairness, check_transparency,
+        rai_additional_notes, locale, use_ai_agent="always"
+    )
+    
+    agent_prompt = agent_result[0]
+    agent_json = agent_result[4]
+    agent_status = agent_result[6]
+    
+    # Yield final result with both outputs
+    yield (
+        template_prompt,
+        template_json,
+        agent_prompt,
+        agent_json,
+        f"""### ⚖️ Side-by-Side Comparison Mode
+
+**Left (Template):** {template_status}
+
+**Right (AI Agent):** {agent_status}"""
+    )
+
+
+def generate_both_prompts(
+    feature_name: str,
+    feature_description: str,
+    category: str,
+    input_format: str,
+    output_format: str,
+    typical_input_example: str,
+    expected_output_example: str,
+    selected_metrics: List[str],
+    additional_context: str,
+    check_safety: bool,
+    check_privacy: bool,
+    check_fairness: bool,
+    check_transparency: bool,
+    rai_additional_notes: str,
+    locale: str = "en-US"
+) -> tuple:
+    """
+    Generate BOTH Template and AI Agent prompts for side-by-side comparison.
+    Non-streaming version for backward compatibility.
+    
+    Returns:
+        Tuple containing both outputs plus status message
+    """
+    # Use the streaming version but consume all results
+    result = None
+    for result in generate_both_prompts_streaming(
+        feature_name, feature_description, category,
+        input_format, output_format,
+        typical_input_example, expected_output_example,
+        selected_metrics, additional_context,
+        check_safety, check_privacy, check_fairness, check_transparency,
+        rai_additional_notes, locale
+    ):
+        pass  # Get the final result
+    
+    return result
+
+
 def update_metrics_on_category_change(category: str) -> List[str]:
     """Update selected metrics when category changes"""
     cat = category.lower().replace(" ", "_") if category else "generic"
     return DEFAULT_METRICS_BY_CATEGORY.get(cat, DEFAULT_METRICS_BY_CATEGORY.get("generic", []))
+
+
+def get_ai_metric_recommendations(
+    feature_name: str,
+    feature_description: str,
+    category: str,
+    input_format: str,
+    output_format: str,
+    check_privacy: bool,
+    check_safety: bool,
+    locale: str
+) -> tuple:
+    """
+    Get intelligent metric recommendations from AI Agent.
+    
+    Returns:
+        Tuple of (recommendations_markdown, recommended_metrics_list)
+    """
+    if not feature_name or not feature_description:
+        return (
+            "⚠️ **Please provide a feature name and description first** to get AI-powered metric recommendations.",
+            []
+        )
+    
+    try:
+        # Import the recommend_metrics function from ai_agent
+        if AI_AGENT_AVAILABLE:
+            from .ai_agent import recommend_metrics
+            
+            result = recommend_metrics(
+                feature_name=feature_name,
+                feature_description=feature_description,
+                category=category.lower() if category else "",
+                input_format=input_format or "text",
+                output_format=output_format or "text",
+                privacy_sensitive=check_privacy,
+                safety_critical=check_safety,
+                locale=locale or "en-US"
+            )
+            
+            # Format the recommendations as markdown
+            md_parts = []
+            md_parts.append(f"## 📊 AI Metric Recommendations for **{feature_name}**\n")
+            md_parts.append(f"*Detected Category: **{result['detected_category']}***\n")
+            md_parts.append(f"*Total Recommended: **{result['total_metrics']} metrics***\n\n")
+            
+            # Group metrics by priority
+            priority_metrics = result.get('priority_order', [])
+            all_metrics = result.get('recommended_metrics', [])
+            explanations = result.get('explanations', {})
+            
+            # Critical metrics (first 2 from priority)
+            if priority_metrics:
+                md_parts.append("### 🔴 Critical Metrics (Must Include)\n")
+                for i, m in enumerate(priority_metrics[:3]):
+                    exp = explanations.get(m, "")
+                    md_parts.append(f"{i+1}. **{m}**: {exp}\n\n")
+            
+            # Important metrics (rest of priority)
+            if len(priority_metrics) > 3:
+                md_parts.append("### 🟡 Important Metrics (Recommended)\n")
+                for i, m in enumerate(priority_metrics[3:6], start=4):
+                    exp = explanations.get(m, "")
+                    md_parts.append(f"{i}. **{m}**: {exp}\n\n")
+            
+            # Additional metrics
+            additional = [m for m in all_metrics if m not in priority_metrics[:6]]
+            if additional:
+                md_parts.append("### 🟢 Additional Metrics (Consider)\n")
+                for i, m in enumerate(additional[:4], start=len(priority_metrics[:6])+1):
+                    exp = explanations.get(m, "Adds additional quality coverage.")
+                    md_parts.append(f"{i}. **{m}**: {exp}\n\n")
+            
+            # RAI requirements
+            rai_reqs = result.get('rai_requirements', [])
+            if rai_reqs:
+                md_parts.append("### 🛡️ RAI Requirements Detected\n")
+                for req in rai_reqs:
+                    md_parts.append(f"- ✓ {req.replace('_', ' ').title()}\n")
+            
+            md_parts.append("\n---\n")
+            md_parts.append("*Click the recommended metrics above to update your selection, or use 'Apply Recommendations' below.*")
+            
+            return ("".join(md_parts), all_metrics)
+        else:
+            # Fallback to basic recommendations if AI Agent not available
+            from .metrics_registry import get_default_metrics_for_category, suggest_additional_metrics
+            
+            cat = category.lower() if category else "other"
+            default_metrics = get_default_metrics_for_category(cat)
+            suggested = suggest_additional_metrics(cat, default_metrics)
+            all_recommended = list(set(default_metrics + suggested + ["safety"]))
+            
+            md = f"""## 📊 Metric Recommendations for **{feature_name}**
+
+*AI Agent not available - using rule-based recommendations*
+
+### Recommended Metrics for '{cat}' category:
+{', '.join(f'**{m}**' for m in all_recommended)}
+
+> Install `agent-framework` package to enable intelligent AI-powered recommendations with detailed explanations.
+"""
+            return (md, all_recommended)
+            
+    except Exception as e:
+        logger.error(f"Error getting AI recommendations: {e}")
+        return (f"❌ Error getting recommendations: {str(e)}", [])
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1611,12 +1836,20 @@ def create_app() -> gr.Blocks:
                     select_all_btn = gr.Button("✅ Select All", variant="secondary", size="sm")
                     unselect_all_btn = gr.Button("⬜ Unselect All", variant="secondary", size="sm")
                     select_recommended_btn = gr.Button("⭐ Select Recommended", variant="secondary", size="sm")
+                    ai_recommend_btn = gr.Button("🤖 AI Recommend", variant="primary", size="sm")
                 
                 selected_metrics = gr.CheckboxGroup(
                     label="Selected Metrics",
                     choices=get_all_metrics_choices(),
                     value=["relevance", "fluency", "safety"]
                 )
+                
+                # AI Recommendation output area
+                with gr.Accordion("🤖 AI Metric Recommendations", open=False, visible=True) as ai_recommendations_accordion:
+                    ai_recommendations_output = gr.Markdown(
+                        value="*Click 'AI Recommend' to get intelligent metric suggestions based on your feature description.*",
+                        label="AI Recommendations"
+                    )
                 
                 gr.Markdown("---")
                 gr.Markdown("### 🌍 Locale Settings")
@@ -1707,19 +1940,52 @@ def create_app() -> gr.Blocks:
                             choices=[
                                 ("🤖 Auto (detect complexity)", "auto"),
                                 ("⚡ Always use AI Agent", "always"),
-                                ("📋 Template only", "never")
+                                ("📋 Template only", "never"),
+                                ("⚖️ Both (side-by-side comparison)", "both")
                             ],
                             value="auto",
                             label="Generation Mode",
-                            info="AI Agent provides better results for complex/novel features" if AI_AGENT_AVAILABLE else "AI Agent not available - install agent-framework",
+                            info="Use 'Both' to compare Template vs AI Agent outputs side-by-side" if AI_AGENT_AVAILABLE else "AI Agent not available - install agent-framework",
                             interactive=AI_AGENT_AVAILABLE
                         )
                 
                 status_message = gr.Markdown("")
                 
+                # Comparison mode indicator
+                comparison_mode_indicator = gr.Markdown("", visible=False)
+                
                 with gr.Tabs():
                     with gr.Tab("📝 Prompt-Based Evaluation"):
-                        with gr.Row():
+                        # Side-by-side comparison layout (hidden by default)
+                        with gr.Row(visible=False) as comparison_row:
+                            with gr.Column():
+                                gr.Markdown("### 📋 Template Mode Output")
+                                template_output_prompt = gr.Textbox(
+                                    label="Template-Generated Prompt",
+                                    lines=18
+                                )
+                                with gr.Accordion("📄 Feature Specification (Template)", open=False):
+                                    template_json = gr.Code(
+                                        label="Feature Spec JSON",
+                                        language="json",
+                                        lines=15
+                                    )
+                            
+                            with gr.Column():
+                                gr.Markdown("### 🤖 AI Agent Mode Output")
+                                agent_output_prompt = gr.Textbox(
+                                    label="AI Agent-Generated Prompt",
+                                    lines=18
+                                )
+                                with gr.Accordion("📄 Feature Specification (AI Agent)", open=False):
+                                    agent_json = gr.Code(
+                                        label="Feature Spec JSON",
+                                        language="json",
+                                        lines=15
+                                    )
+                        
+                        # Single mode layout (default)
+                        with gr.Row(visible=True) as single_row:
                             with gr.Column():
                                 output_prompt = gr.Textbox(
                                     label="Generated Evaluation Prompt",
@@ -1948,6 +2214,21 @@ def create_app() -> gr.Blocks:
             outputs=[selected_metrics]
         )
         
+        # AI Recommend button - intelligent metric selection
+        def handle_ai_recommend(feat_name, feat_desc, cat, in_fmt, out_fmt, priv, safe, loc):
+            """Handle AI recommendation and update metrics"""
+            md_output, recommended_list = get_ai_metric_recommendations(
+                feat_name, feat_desc, cat, in_fmt, out_fmt, priv, safe, loc
+            )
+            # Return both the markdown display and update the selected metrics
+            return md_output, recommended_list
+        
+        ai_recommend_btn.click(
+            fn=handle_ai_recommend,
+            inputs=[feature_name, feature_description, category, input_format, output_format, check_privacy, check_safety, locale_dropdown],
+            outputs=[ai_recommendations_output, selected_metrics]
+        )
+        
         # Locale change updates info display
         locale_dropdown.change(
             fn=get_locale_info_text,
@@ -1956,7 +2237,7 @@ def create_app() -> gr.Blocks:
         )
         
         # Generate button - also update the simulation tab's generated prompt display and enable simulation
-        def generate_and_sync_to_simulation(
+        def generate_and_sync_to_simulation_streaming(
             feature_name_val, feature_description_val, category_val,
             input_format_val, output_format_val,
             typical_input_val, expected_output_val,
@@ -1964,7 +2245,98 @@ def create_app() -> gr.Blocks:
             check_safety_val, check_privacy_val, check_fairness_val, check_transparency_val,
             rai_notes_val, locale_val, ai_agent_mode_val
         ):
-            """Generate prompt and return extra copy for simulation tab, also update visibility"""
+            """
+            Generator that yields results progressively.
+            For 'both' mode, shows Template result immediately while AI Agent loads.
+            """
+            
+            # Check if category supports simulation
+            cat = category_val.lower() if category_val else ""
+            category_supports_sim = cat in SIMULATION_SUPPORTED_CATEGORIES
+            
+            # Check if "both" mode is selected for side-by-side comparison
+            if ai_agent_mode_val == "both":
+                # Use streaming generator to show Template first
+                for both_result in generate_both_prompts_streaming(
+                    feature_name_val, feature_description_val, category_val,
+                    input_format_val, output_format_val,
+                    typical_input_val, expected_output_val,
+                    selected_metrics_val, additional_context_val,
+                    check_safety_val, check_privacy_val, check_fairness_val, check_transparency_val,
+                    rai_notes_val, locale_val
+                ):
+                    template_prompt = both_result[0]
+                    template_json_spec = both_result[1]
+                    agent_prompt = both_result[2]
+                    agent_json_spec = both_result[3]
+                    combined_status = both_result[4]
+                    
+                    # For simulation, use the template prompt
+                    sim_prompt = template_prompt if template_prompt else agent_prompt
+                    
+                    if sim_prompt and sim_prompt.strip() and category_supports_sim:
+                        yield (
+                            "",                         # output_prompt (single mode - hidden)
+                            "",                         # metric_defs_output
+                            "",                         # suggested_metrics_output
+                            "",                         # used_metrics_output
+                            "",                         # output_json (single mode - hidden)
+                            "",                         # code_metrics_output
+                            combined_status,            # status_message
+                            template_prompt,            # template_output_prompt
+                            template_json_spec,         # template_json
+                            agent_prompt,               # agent_output_prompt
+                            agent_json_spec,            # agent_json
+                            gr.update(visible=True),    # comparison_row - show
+                            gr.update(visible=False),   # single_row - hide
+                            sim_prompt,                 # sim_generated_prompt_display
+                            gr.update(visible=False),   # sim_category_notice - hide
+                            gr.update(visible=False),   # sim_prompt_notice - hide
+                            gr.update(visible=True),    # sim_content - show
+                        )
+                    elif sim_prompt and sim_prompt.strip() and not category_supports_sim:
+                        yield (
+                            "",                         # output_prompt
+                            "",                         # metric_defs_output
+                            "",                         # suggested_metrics_output
+                            "",                         # used_metrics_output
+                            "",                         # output_json
+                            "",                         # code_metrics_output
+                            combined_status,            # status_message
+                            template_prompt,            # template_output_prompt
+                            template_json_spec,         # template_json
+                            agent_prompt,               # agent_output_prompt
+                            agent_json_spec,            # agent_json
+                            gr.update(visible=True),    # comparison_row - show
+                            gr.update(visible=False),   # single_row - hide
+                            sim_prompt,                 # sim_generated_prompt_display
+                            gr.update(visible=True),    # sim_category_notice - show
+                            gr.update(visible=False),   # sim_prompt_notice - hide
+                            gr.update(visible=False),   # sim_content - hide
+                        )
+                    else:
+                        yield (
+                            "",                         # output_prompt
+                            "",                         # metric_defs_output
+                            "",                         # suggested_metrics_output
+                            "",                         # used_metrics_output
+                            "",                         # output_json
+                            "",                         # code_metrics_output
+                            combined_status,            # status_message
+                            template_prompt or "",      # template_output_prompt
+                            template_json_spec or "",   # template_json
+                            agent_prompt or "",         # agent_output_prompt
+                            agent_json_spec or "",      # agent_json
+                            gr.update(visible=True),    # comparison_row - show
+                            gr.update(visible=False),   # single_row - hide
+                            "",                         # sim_generated_prompt_display
+                            gr.update(),                # sim_category_notice - no change
+                            gr.update(),                # sim_prompt_notice - no change
+                            gr.update(),                # sim_content - no change
+                        )
+                return  # Exit after generator completes
+            
+            # Single mode (auto, always, or never) - no streaming needed
             result = generate_prompt(
                 feature_name_val, feature_description_val, category_val,
                 input_format_val, output_format_val,
@@ -1973,41 +2345,72 @@ def create_app() -> gr.Blocks:
                 check_safety_val, check_privacy_val, check_fairness_val, check_transparency_val,
                 rai_notes_val, locale_val, ai_agent_mode_val
             )
-            # result is (evaluation_prompt, metric_defs, suggested_str, metrics_used_str, json_spec, code_metrics_sample, status_message)
             evaluation_prompt = result[0]
             
-            # Check if category supports simulation
-            cat = category_val.lower() if category_val else ""
-            category_supports_sim = cat in SIMULATION_SUPPORTED_CATEGORIES
-            
-            # If prompt was generated successfully and category supports simulation
             if evaluation_prompt and evaluation_prompt.strip() and category_supports_sim:
-                # Show simulation content, hide both notices
-                return result + (
+                yield result + (
+                    "",                          # template_output_prompt (comparison mode)
+                    "",                          # template_json
+                    "",                          # agent_output_prompt
+                    "",                          # agent_json
+                    gr.update(visible=False),    # comparison_row - hide
+                    gr.update(visible=True),     # single_row - show
                     evaluation_prompt,           # sim_generated_prompt_display
                     gr.update(visible=False),    # sim_category_notice - hide
                     gr.update(visible=False),    # sim_prompt_notice - hide
                     gr.update(visible=True),     # sim_content - show
                 )
             elif evaluation_prompt and evaluation_prompt.strip() and not category_supports_sim:
-                # Prompt generated but category doesn't support simulation
-                return result + (
+                yield result + (
+                    "",                          # template_output_prompt
+                    "",                          # template_json
+                    "",                          # agent_output_prompt
+                    "",                          # agent_json
+                    gr.update(visible=False),    # comparison_row - hide
+                    gr.update(visible=True),     # single_row - show
                     evaluation_prompt,           # sim_generated_prompt_display
                     gr.update(visible=True),     # sim_category_notice - show
                     gr.update(visible=False),    # sim_prompt_notice - hide
                     gr.update(visible=False),    # sim_content - hide
                 )
             else:
-                # No prompt generated
-                return result + (
+                yield result + (
+                    "",                          # template_output_prompt
+                    "",                          # template_json
+                    "",                          # agent_output_prompt
+                    "",                          # agent_json
+                    gr.update(visible=False),    # comparison_row - hide
+                    gr.update(visible=True),     # single_row - show
                     "",                          # sim_generated_prompt_display
                     gr.update(),                 # sim_category_notice - no change
                     gr.update(),                 # sim_prompt_notice - no change
                     gr.update(),                 # sim_content - no change
                 )
         
+        # Keep the old non-streaming function for backward compatibility
+        def generate_and_sync_to_simulation(
+            feature_name_val, feature_description_val, category_val,
+            input_format_val, output_format_val,
+            typical_input_val, expected_output_val,
+            selected_metrics_val, additional_context_val,
+            check_safety_val, check_privacy_val, check_fairness_val, check_transparency_val,
+            rai_notes_val, locale_val, ai_agent_mode_val
+        ):
+            """Non-streaming version - consume all from generator"""
+            result = None
+            for result in generate_and_sync_to_simulation_streaming(
+                feature_name_val, feature_description_val, category_val,
+                input_format_val, output_format_val,
+                typical_input_val, expected_output_val,
+                selected_metrics_val, additional_context_val,
+                check_safety_val, check_privacy_val, check_fairness_val, check_transparency_val,
+                rai_notes_val, locale_val, ai_agent_mode_val
+            ):
+                pass
+            return result
+        
         generate_btn.click(
-            fn=generate_and_sync_to_simulation,
+            fn=generate_and_sync_to_simulation_streaming,
             inputs=[
                 feature_name, feature_description, category,
                 input_format, output_format,
@@ -2016,7 +2419,12 @@ def create_app() -> gr.Blocks:
                 check_safety, check_privacy, check_fairness, check_transparency,
                 rai_notes, locale_dropdown, ai_agent_mode
             ],
-            outputs=[output_prompt, metric_defs_output, suggested_metrics_output, used_metrics_output, output_json, code_metrics_output, status_message, sim_generated_prompt_display, sim_category_notice, sim_prompt_notice, sim_content]
+            outputs=[
+                output_prompt, metric_defs_output, suggested_metrics_output, used_metrics_output, output_json, code_metrics_output, status_message,
+                template_output_prompt, template_json, agent_output_prompt, agent_json,
+                comparison_row, single_row,
+                sim_generated_prompt_display, sim_category_notice, sim_prompt_notice, sim_content
+            ]
         )
         
         # --- Simulation Tab Event Handlers ---

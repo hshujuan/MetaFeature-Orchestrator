@@ -59,4 +59,70 @@ See [ArchitectureOverview.md](ArchitectureOverview.md) for:
 | Web UI | [app.py](../src/core/app.py) | `create_app()`, `generate_prompt_handler()` |
 
 ---
+
+## Metric Recommendation Systems
+
+The Quality Metrics tab provides two different ways to select evaluation metrics:
+
+### ⭐ Select Recommended (Rule-Based)
+
+A **static, rule-based** recommendation system using hardcoded category mappings.
+
+| Aspect | Description |
+|--------|-------------|
+| **Method** | Simple lookup from `DEFAULT_METRICS_BY_CATEGORY` dictionary |
+| **Location** | [metrics_registry.py](../src/core/metrics_registry.py) lines 612-633 |
+| **Analysis** | None - purely category-based |
+| **Explanations** | None provided |
+| **Speed** | Instant (no computation) |
+
+**How it works:**
+```
+Category → Fixed Metric List
+"summarization" → ["faithfulness", "coverage", "groundedness", "fluency", "brevity", "safety", "privacy", "format_compliance"]
+"auto_reply" → ["relevance", "tone", "fluency", "brevity", "safety", "privacy", ...]
+```
+
+### 🤖 AI Recommend (Intelligent Analysis)
+
+A **dynamic, intelligent** recommendation system that analyzes your feature.
+
+| Aspect | Description |
+|--------|-------------|
+| **Method** | Semantic analysis of feature name, description, and context |
+| **Location** | [ai_agent.py](../src/core/ai_agent.py) `recommend_metrics()` function |
+| **Analysis** | Detects privacy sensitivity, safety criticality, locale requirements |
+| **Explanations** | Detailed rationale for each recommended metric |
+| **Speed** | ~100ms (local computation, no LLM call) |
+
+**What it analyzes:**
+- Feature description keywords → Detects "medical", "financial", "personal" = privacy-sensitive
+- Safety indicators → "health", "legal", "decision" = safety-critical features
+- Output format → JSON/XML = adds `format_compliance`
+- Locale → Non-US locales add `cultural_appropriateness`, `regional_compliance`
+
+### Comparison Example
+
+**Feature:** "Medical Summary Generator that summarizes patient records"
+
+| Aspect | ⭐ Select Recommended | 🤖 AI Recommend |
+|--------|----------------------|-----------------|
+| **Method** | Lookup "summarization" category | Analyze "medical", "patient records", "summarizes" |
+| **Privacy** | Included (standard for category) | **🔴 CRITICAL priority** - detects "patient records" = medical PII |
+| **Groundedness** | Included (standard) | **🔴 HIGH priority** - detects "medical" = safety-critical |
+| **Explanation** | *(none)* | "🔐 **CRITICAL**: Handles sensitive/personal data. Must not leak PII, confidential information, or user data. Privacy violations can result in legal action and user harm." |
+| **Priority Order** | Flat list | Tiered: Critical → Important → Additional |
+
+### When to Use Which
+
+| Use Case | Recommendation |
+|----------|----------------|
+| Quick prototype | ⭐ Select Recommended |
+| Standard feature in known category | ⭐ Select Recommended |
+| Complex/novel feature | 🤖 AI Recommend |
+| Privacy-sensitive feature | 🤖 AI Recommend |
+| Need to understand WHY metrics matter | 🤖 AI Recommend |
+| Documentation/audit trail | 🤖 AI Recommend |
+
+---
 *Last updated: January 25, 2026*

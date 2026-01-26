@@ -4,6 +4,7 @@ Provides structured templates for different feature types with localization supp
 """
 from __future__ import annotations
 from typing import Dict, List, Any, Optional, Tuple
+from datetime import datetime, timezone
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1059,12 +1060,14 @@ def template_auto_reply(
 {feature_context}
 """
     
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    
     return f"""# {B("evaluation_prompt")}: {feature_name}
 **Version:** 2.0 (Auto-Reply Contract)
 **{B("target_language")}:** {language}
 **Locale:** {locale_name}
 **Privacy Framework:** {privacy_framework}
-**Generated:** {{timestamp}}
+**Generated:** {timestamp}
 
 ---
 
@@ -1250,12 +1253,14 @@ def template_summarization(
 {feature_context}
 """
     
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    
     return f"""# {B("evaluation_prompt")}: {feature_name}
 **Version:** 2.0 (Summarization Contract)
 **{B("target_language")}:** {language}
 **Locale:** {locale_name}
 **Privacy Framework:** {privacy_framework}
-**Generated:** {{timestamp}}
+**Generated:** {timestamp}
 
 ---
 
@@ -1445,12 +1450,14 @@ def template_translation(
 {feature_context}
 """
     
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    
     return f"""# {B("evaluation_prompt")}: {feature_name}
 **Version:** 2.0 (Translation Contract)
 **{B("target_language")}:** {language}
 **Locale:** {locale_name}
 **Privacy Framework:** {privacy_framework}
-**Generated:** {{timestamp}}
+**Generated:** {timestamp}
 
 ---
 
@@ -1648,12 +1655,14 @@ def template_generic(
 {feature_context}
 """
     
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    
     return f"""# {B("evaluation_prompt")}: {feature_name}
 **Version:** 2.0 (Canonical Contract)
 **{B("target_language")}:** {language}
 **Locale:** {locale_name}
 **Privacy Framework:** {privacy_framework}
-**Generated:** {{timestamp}}
+**Generated:** {timestamp}
 
 ---
 
@@ -1823,12 +1832,14 @@ def template_personal_assistant(
 {feature_context}
 """
     
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    
     return f"""# Evaluation Prompt: {feature_name}
 **Version:** 2.0 (Personal Assistant Contract)
 **Target Language:** {language}
 **Locale:** {locale_name}
 **Privacy Framework:** {privacy_framework}
-**Generated:** {{timestamp}}
+**Generated:** {timestamp}
 
 ---
 
