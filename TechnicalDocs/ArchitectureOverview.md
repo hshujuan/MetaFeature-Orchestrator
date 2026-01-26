@@ -293,7 +293,7 @@ flowchart TB
 
 ### 3.4.1 Code-Based Metrics (`code_metrics.py`)
 
-In addition to LLM-based evaluation, the system provides **deterministic, programmatic metrics** using open-source NLP libraries. These enable reproducible, automated evaluation pipelines.
+In addition to LLM-based evaluation, the system provides **deterministic, programmatic metrics** using open-source NLP libraries. These enable automated evaluation pipelines with consistent scoring.
 
 ```mermaid
 flowchart LR

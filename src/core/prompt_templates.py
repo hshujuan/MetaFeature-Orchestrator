@@ -931,7 +931,7 @@ CORE PRINCIPLES:
 1. METRIC-FIRST: Evaluation criteria must be explicit and measurable
 2. GROUNDED: Only evaluate against explicitly stated criteria - no hallucinated judgment
 3. RAI BY DESIGN: Always include safety, bias, toxicity, and privacy checks
-4. REPRODUCIBLE: Prompts should produce consistent evaluations
+4. CONSISTENT: Prompts should use clear criteria to guide evaluations
 5. HUMAN-REVIEWABLE: Output must be clear and auditable
 
 Your output must include:

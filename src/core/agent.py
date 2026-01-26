@@ -26,7 +26,7 @@ class FeaturePromptWriterAgent:
     - Grounded: No hallucinated judgment criteria
     - RAI by design: Safety, bias, privacy checks embedded
     - Extensible: Easy to add new features without re-engineering
-    - Stateless & reproducible: Same input -> same output
+    - Stateless: No hidden state between calls
     """
     
     def __init__(self):

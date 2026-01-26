@@ -2,7 +2,7 @@
 Code-Based Metrics - Programmatic evaluation metrics using well-known open source packages.
 
 This module provides:
-1. Deterministic, reproducible metric computations
+1. Deterministic metric computations
 2. Integration with popular NLP evaluation libraries
 3. Code generation for sample metric implementations
 

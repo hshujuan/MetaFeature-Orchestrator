@@ -1391,7 +1391,7 @@ def create_app() -> gr.Blocks:
                     
                     with gr.Tab("💻 Code-Based Metrics"):
                         gr.Markdown("""
-                        **Code-based metrics** provide deterministic, reproducible evaluation using well-known open source packages.
+                        **Code-based metrics** provide deterministic evaluation using well-known open source packages.
                         
                         These complement prompt-based evaluation with measurable, programmatic scores.
                         """)
