@@ -485,10 +485,13 @@ def generate_prompt(
     check_fairness: bool,
     check_transparency: bool,
     rai_additional_notes: str,
-    language: str = "en"
+    locale: str = "en-US"
 ) -> tuple[str, str, str, str, str, str]:
     """
     Generate an evaluation prompt using the agent.
+    
+    Args:
+        locale: Full locale code (e.g., 'en-US', 'zh-CN', 'es-MX')
     
     Returns:
         Tuple of (evaluation_prompt, metric_definitions, suggested_metrics, 
@@ -504,7 +507,8 @@ def generate_prompt(
     expected_output_example = expected_output_example or ""
     additional_context = additional_context or ""
     rai_additional_notes = rai_additional_notes or ""
-    language = language or "en"
+    locale = normalize_locale(locale or "en-US")
+    language = get_language(locale)
     
     if not feature_name.strip():
         return "", "", "", "", "", "", "❌ Please provide a feature name"
@@ -580,13 +584,13 @@ def generate_prompt(
         
         # Generate using agent
         agent = FeaturePromptWriterAgent()
-        result = agent.generate(metadata, language=language)
+        result = agent.generate(metadata, locale=locale)
         
         # Format outputs
         evaluation_prompt = result.evaluation_prompt
         
         # Metric definitions used
-        metric_defs = format_metric_definitions(selected_metrics, language)
+        metric_defs = format_metric_definitions(selected_metrics, locale)
         
         # Suggested additional metrics
         cat_str = category.lower() if category else "other"
@@ -609,6 +613,8 @@ def generate_prompt(
                 "cultural_sensitivity": rai.cultural_sensitivity,
                 "safety_critical": rai.safety_critical
             },
+            "locale": locale,
+            "privacy_framework": get_privacy_framework(locale),
             "grading_rubric": result.grading_rubric if hasattr(result, 'grading_rubric') else {},
             "rai_checks": result.rai_checks if hasattr(result, 'rai_checks') else []
         }, indent=2)
@@ -617,10 +623,10 @@ def generate_prompt(
         run_store.log_run(
             feature_id=feature_id,
             template_id="",
-            language=language,
+            language=language,  # Legacy field - still using language for DB compatibility
             metrics=selected_metrics,
             output_prompt=evaluation_prompt,
-            result={"json_spec": json_spec}
+            result={"json_spec": json_spec, "locale": locale}
         )
         
         # Generate code-based metrics sample
@@ -1262,68 +1268,45 @@ def create_app() -> gr.Blocks:
                 )
                 
                 gr.Markdown("---")
-                gr.Markdown("### 🌍 Localization Settings")
+                gr.Markdown("### 🌍 Locale Settings")
+                gr.Markdown("*Select the target locale for culture-aware evaluation with region-specific RAI checks.*")
                 
                 with gr.Row():
-                    location = gr.Dropdown(
-                        label="Target Location/Region",
+                    locale_dropdown = gr.Dropdown(
+                        label="Target Locale",
                         choices=[
-                            ("🇺🇸 United States", "US"),
-                            ("🇬🇧 United Kingdom", "GB"),
-                            ("🇨🇳 China (Mainland)", "CN"),
-                            ("🇹🇼 Taiwan", "TW"),
-                            ("🇭🇰 Hong Kong", "HK"),
-                            ("🇯🇵 Japan", "JP"),
-                            ("🇰🇷 South Korea", "KR"),
-                            ("🇩🇪 Germany", "DE"),
-                            ("🇫🇷 France", "FR"),
-                            ("🇪🇸 Spain", "ES"),
-                            ("🇲🇽 Mexico", "MX"),
-                            ("🇧🇷 Brazil", "BR"),
-                            ("🇮🇳 India", "IN"),
-                            ("🇸🇦 Saudi Arabia", "SA"),
-                            ("🇦🇪 United Arab Emirates", "AE"),
-                            ("🇮🇩 Indonesia", "ID"),
-                            ("🇻🇳 Vietnam", "VN"),
-                            ("🇹🇭 Thailand", "TH"),
-                            ("🇮🇹 Italy", "IT"),
-                            ("🇳🇱 Netherlands", "NL"),
-                            ("🇷🇺 Russia", "RU"),
-                            ("🇵🇱 Poland", "PL"),
-                            ("🇹🇷 Turkey", "TR"),
-                            ("🇦🇺 Australia", "AU"),
-                            ("🇨🇦 Canada", "CA"),
-                            ("🌐 Global/International", "GLOBAL"),
+                            # English variants
+                            ("🇺🇸 English (United States)", "en-US"),
+                            ("🇬🇧 English (United Kingdom)", "en-GB"),
+                            ("🇦🇺 English (Australia)", "en-AU"),
+                            ("🇮🇳 English (India)", "en-IN"),
+                            ("🇸🇬 English (Singapore)", "en-SG"),
+                            ("🇨🇦 English (Canada)", "en-CA"),
+                            # Chinese variants
+                            ("🇨🇳 中文 (中国大陆)", "zh-CN"),
+                            ("🇹🇼 中文 (台灣)", "zh-TW"),
+                            ("🇭🇰 中文 (香港)", "zh-HK"),
+                            # Spanish variants
+                            ("🇪🇸 Español (España)", "es-ES"),
+                            ("🇲🇽 Español (México)", "es-MX"),
+                            ("🇦🇷 Español (Argentina)", "es-AR"),
+                            # Portuguese variants
+                            ("🇧🇷 Português (Brasil)", "pt-BR"),
+                            ("🇵🇹 Português (Portugal)", "pt-PT"),
+                            # Other languages
+                            ("🇯🇵 日本語 (日本)", "ja-JP"),
+                            ("🇰🇷 한국어 (대한민국)", "ko-KR"),
+                            ("🇩🇪 Deutsch (Deutschland)", "de-DE"),
+                            ("🇫🇷 Français (France)", "fr-FR"),
+                            ("🇨🇦 Français (Canada)", "fr-CA"),
                         ],
-                        value="US",
-                        info="Select the target region for culture-aware evaluation"
+                        value="en-US",
+                        info="Locale affects tone, formality, and privacy compliance (e.g., GDPR, CCPA, PIPL)"
                     )
                     
-                    language = gr.Dropdown(
-                        label="Evaluation Language",
-                        choices=[
-                            ("English", "en"),
-                            ("Chinese (Simplified)", "zh-Hans"),
-                            ("Chinese (Traditional)", "zh-Hant"),
-                            ("Japanese", "ja"),
-                            ("Korean", "ko"),
-                            ("Spanish", "es"),
-                            ("French", "fr"),
-                            ("German", "de"),
-                            ("Portuguese", "pt"),
-                            ("Italian", "it"),
-                            ("Russian", "ru"),
-                            ("Arabic", "ar"),
-                            ("Hindi", "hi"),
-                            ("Indonesian", "id"),
-                            ("Vietnamese", "vi"),
-                            ("Thai", "th"),
-                            ("Dutch", "nl"),
-                            ("Polish", "pl"),
-                            ("Turkish", "tr"),
-                        ],
-                        value="en",
-                        info="Auto-filled based on location, but you can change it"
+                    locale_info = gr.Markdown(
+                        """**en-US**: Casual tone, direct feedback, CCPA privacy framework""",
+                        elem_id="locale-info"
                     )
             
             # Tab 3: RAI Settings
@@ -1468,10 +1451,19 @@ def create_app() -> gr.Blocks:
                                 value=["faithfulness", "fluency", "safety"]
                             )
                             
-                            sim_language = gr.Dropdown(
-                                label="🌐 Evaluation Language",
-                                choices=[("English", "en"), ("Spanish", "es"), ("Chinese (Simplified)", "zh-Hans")],
-                                value="en"
+                            sim_locale = gr.Dropdown(
+                                label="🌐 Evaluation Locale",
+                                choices=[
+                                    ("🇺🇸 English (US)", "en-US"), 
+                                    ("🇬🇧 English (UK)", "en-GB"),
+                                    ("🇨🇳 中文 (中国)", "zh-CN"),
+                                    ("🇹🇼 中文 (台灣)", "zh-TW"),
+                                    ("🇪🇸 Español (España)", "es-ES"),
+                                    ("🇲🇽 Español (México)", "es-MX"),
+                                    ("🇯🇵 日本語", "ja-JP"),
+                                ],
+                                value="en-US",
+                                info="Locale affects tone, cultural context, and compliance"
                             )
                         
                         with gr.Column(scale=1):
@@ -1657,7 +1649,7 @@ def create_app() -> gr.Blocks:
                 typical_input, expected_output,
                 selected_metrics, additional_context,
                 check_safety, check_privacy, check_fairness, check_transparency,
-                rai_notes, language
+                rai_notes, locale_dropdown
             ],
             outputs=[output_prompt, metric_defs_output, suggested_metrics_output, used_metrics_output, output_json, code_metrics_output, status_message, sim_generated_prompt_display, sim_category_notice, sim_prompt_notice, sim_content]
         )
