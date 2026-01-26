@@ -13,11 +13,11 @@ textstat>=0.7.0         # Readability metrics (Flesch, etc.)
 rapidfuzz>=3.0.0        # Fuzzy string matching
 evaluate>=0.4.0         # HuggingFace unified metrics API
 
-# AI Agent Framework (optional - for advanced agentic capabilities)
+# AI Agent Framework 
 # Install with: pip install agent-framework --pre
-# agent-framework>=0.1.0
+agent-framework>=0.1.0
 
-# Optional: Development tools
-# pytest>=7.0.0
-# black>=23.0.0
-# ruff>=0.1.0
+#  Development tools
+pytest>=7.0.0
+black>=23.0.0
+ruff>=0.1.0

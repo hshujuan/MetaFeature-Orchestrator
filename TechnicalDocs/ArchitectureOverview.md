@@ -1,16 +1,24 @@
 # MetaFeature-Orchestrator: Architecture Overview
 
-> **Version**: 2.0  
+> **Version**: 2.1  
 > **Last Updated**: January 25, 2026  
 > **Document Type**: High-Level Architecture
 
 ---
 
-## What's New in v2.0
+## What's New in v2.1
+
+- **Side-by-Side Comparison Mode**: Compare Template vs AI Agent outputs with progressive loading
+- **Progressive Streaming**: Template output shows immediately while AI Agent generates
+- **AI Agent v2.1**: Enhanced system prompt with mandatory tool usage for consistent timestamps
+- **9 AI Tools**: Added `recommend_metrics` for intelligent metric selection with explanations
+- **4 Generation Modes**: Auto, Always AI, Template only, Both (comparison)
+
+### What's in v2.0
 
 - **Dual-Mode Agents**: Template Mode (deterministic) + AI Agent Mode (adaptive)
 - **v2.0 Evaluation Prompts**: Hard FAIL gates, second-order quality signals, canonical contract format
-- **Microsoft Agent Framework**: AI Agent with 7 tools via `@ai_function`
+- **Microsoft Agent Framework**: AI Agent with tools via `@ai_function`
 - **Enhanced Locale Support**: 20+ BCP 47 locales with cultural context and privacy frameworks
 
 ---
@@ -23,8 +31,8 @@
 | [src/__init__.py](../src/__init__.py) | Package exports - reveals the public API surface |
 | [src/core/__init__.py](../src/core/__init__.py) | Core module structure - shows all exported components and their organization |
 | [src/core/agent.py](../src/core/agent.py) | Template Mode - implements the `FeaturePromptWriterAgent` (deterministic pipeline) |
-| [src/core/ai_agent.py](../src/core/ai_agent.py) | AI Agent Mode - implements `MetaFeatureAgent` v2.0 with Microsoft Agent Framework |
-| [src/core/app.py](../src/core/app.py) | Gradio web UI - defines the user interface with AI Agent toggle |
+| [src/core/ai_agent.py](../src/core/ai_agent.py) | AI Agent Mode - implements `MetaFeatureAgent` v2.1 with Microsoft Agent Framework and 9 tools |
+| [src/core/app.py](../src/core/app.py) | Gradio web UI - defines the user interface with 4 generation modes and streaming comparison |
 | [src/core/schemas.py](../src/core/schemas.py) | Data models - Pydantic/dataclass definitions for all domain objects |
 | [src/core/llm_client.py](../src/core/llm_client.py) | LLM integration - Azure OpenAI/OpenAI client wrapper with singleton pattern |
 | [src/core/database.py](../src/core/database.py) | Persistence layer - SQLite storage for features, templates, and evaluation runs |
@@ -73,12 +81,12 @@ flowchart TB
     subgraph UI["Presentation Layer"]
         GRADIO[Gradio Web App<br/>app.py]
         TEMPLATES[Predefined Templates<br/>GROUPED_FEATURES]
-        MODE_TOGGLE[AI Agent Mode Toggle<br/>Auto/Always/Never]
+        MODE_TOGGLE[Generation Mode<br/>Auto/Always/Never/Both]
     end
 
     subgraph Core["Core Business Logic"]
         AGENT[FeaturePromptWriterAgent<br/>agent.py - Template Mode]
-        AI_AGENT[MetaFeatureAgent v2.0<br/>ai_agent.py - AI Agent Mode]
+        AI_AGENT[MetaFeatureAgent v2.1<br/>ai_agent.py - AI Agent Mode]
         METRICS_REG[MetricsRegistry<br/>metrics_registry.py]
         PROMPT_TPL[v2.0 PromptTemplates<br/>prompt_templates.py]
     end

@@ -1,16 +1,16 @@
 # Agent Design Documentation
 
-> **Version**: 2.0  
+> **Version**: 2.1  
 > **Last Updated**: January 25, 2026
 
 ## Overview
 
 MetaFeature-Orchestrator provides two agent modes for generating evaluation prompts:
 
-1. **Template Mode** (`FeaturePromptWriterAgent`): Deterministic, template-based prompt generation
-2. **AI Agent Mode** (`MetaFeatureAgent` v2.0): AI-powered agent using Microsoft Agent Framework
+1. **Template Mode** (`FeaturePromptWriterAgent`): Deterministic, template-based prompt generation (v2.0)
+2. **AI Agent Mode** (`MetaFeatureAgent` v2.1): AI-powered agent using Microsoft Agent Framework
 
-Both modes now generate **v2.0 evaluation prompts** with hard FAIL gates, second-order quality signals, and structured JSON output.
+Both modes generate production-ready evaluation prompts with hard FAIL gates, second-order quality signals, and structured JSON output.
 
 ---
 
@@ -21,14 +21,41 @@ Both modes now generate **v2.0 evaluation prompts** with hard FAIL gates, second
 | **Class** | `FeaturePromptWriterAgent` | `MetaFeatureAgent` |
 | **Framework** | Pure Python | Microsoft Agent Framework |
 | **Planning** | Hard-coded workflow | Dynamic LLM reasoning |
-| **Tool Use** | None | 7 tools via `@ai_function` |
+| **Tool Use** | None | 9 tools via `@ai_function` |
 | **Memory** | Stateless | Thread-based conversation |
 | **Decision Making** | Deterministic code paths | LLM-driven decisions |
 | **Speed** | Instant | Requires API calls |
 | **Cost** | Free | API costs |
 | **Best For** | Simple, well-defined features | Complex, novel features |
+| **Prompt Version** | v2.0 | v2.1 |
 
-**Recommendation**: Use Template Mode as the **canonical contract**, AI Agent Mode for **adaptive execution**.
+**Recommendation**: Use **⚖️ Both** mode to compare outputs side-by-side, then choose the best for your use case.
+
+---
+
+## Generation Modes (Web UI)
+
+The web UI provides 4 generation modes:
+
+| Mode | Code | Description | Progressive Loading |
+|------|------|-------------|---------------------|
+| 🤖 Auto | `"auto"` | Detects complexity, chooses automatically | No |
+| ⚡ Always AI | `"always"` | Forces AI Agent mode | No |
+| 📋 Template only | `"never"` | Uses deterministic templates | No |
+| ⚖️ Both | `"both"` | Side-by-side comparison | **Yes** |
+
+### Progressive Loading (Both Mode)
+
+When using "Both" mode, results appear progressively:
+
+```
+1. User clicks Generate
+2. Template output shows IMMEDIATELY (< 1 second)
+3. AI Agent panel shows "⏳ Generating AI Agent prompt..."
+4. AI Agent output appears when ready (5-10 seconds)
+```
+
+**Implementation**: `generate_both_prompts_streaming()` is a Python generator that yields twice.
 
 ---
 
@@ -126,7 +153,7 @@ The agent automatically injects Responsible AI metrics based on feature configur
 
 ---
 
-## AI Agent Mode: `MetaFeatureAgent` v2.0
+## AI Agent Mode: `MetaFeatureAgent` v2.1
 
 ### Overview
 
@@ -134,23 +161,25 @@ The `MetaFeatureAgent` is a **true AI agent** built on Microsoft Agent Framework
 
 **File**: [src/core/ai_agent.py](../src/core/ai_agent.py)
 
-### System Prompt (v2.0)
+### System Prompt (v2.1)
 
 ```
-You are MetaFeature Agent v2.0, an expert AI evaluation prompt generator.
+You are MetaFeature Agent v2.1, an expert AI evaluation prompt generator with intelligent metric selection capabilities.
 
-Your ONLY job is to generate a complete, production-ready evaluation prompt for GenAI features.
+Your job is to:
+1. **Intelligently recommend** the best evaluation metrics for a feature
+2. **Explain why** each metric is important for the specific feature
+3. **Generate** a complete, production-ready evaluation prompt using the `build_prompt` tool
 
-## Your Role: Execution-Time Evaluator Prompt Generator
+## CRITICAL: Always Use the build_prompt Tool
 
-You create evaluation prompts that:
-1. Are **immediately usable** - no further editing needed
-2. Include **explicit FAIL gates** for safety-critical decisions
-3. Have **versioned, auditable** structure for reproducibility
-4. Cover **second-order quality signals** (fluency, cultural fit, regional compliance)
+**NEVER generate evaluation prompts manually.** You MUST call the `build_prompt` tool to generate prompts because:
+- It includes the correct timestamp (not "[Current Date]" placeholder)
+- It applies proper locale-specific formatting
+- It ensures consistent structure and versioning
 ```
 
-### Available Tools (7 total)
+### Available Tools (9 total)
 
 The AI agent has access to these tools via `@ai_function` decorator:
 
@@ -158,9 +187,10 @@ The AI agent has access to these tools via `@ai_function` decorator:
 |------|---------|---------|
 | `lookup_metrics` | Find metrics for a category | Metric names, definitions, weights |
 | `suggest_metrics` | Get recommendations for additional metrics | Suggested metrics list |
+| `recommend_metrics` | **Intelligent** metric selection with explanations | Prioritized metrics with rationale |
 | `get_locale_info` | Get cultural/regulatory info for a locale | Cultural context, tone guidance, privacy framework |
 | `validate_rai_compliance` | Check if metrics meet RAI requirements | Compliance status, issues, recommendations |
-| `build_prompt` | Generate the v2.0 evaluation prompt | Complete evaluation prompt string |
+| `build_prompt` | Generate the v2.1 evaluation prompt | Complete evaluation prompt string (mandatory) |
 | `get_code_metrics` | Get programmatic metrics sample | Code sample for ROUGE, BLEU, etc. |
 | `analyze_feature_description` | Extract attributes from natural language | Category, sensitivity flags, confidence |
 
@@ -184,16 +214,10 @@ The AI agent has access to these tools via `@ai_function` decorator:
 │      │                                                              │
 │      ▼                                                              │
 │   ┌─────────────────────────────────────────┐                      │
-│   │ Tool: lookup_metrics                    │  ◄── Get metrics     │
-│   │   • Category: summarization             │      for category    │
-│   │   • Returns: faithfulness, coverage...  │                      │
-│   └─────────────────────────────────────────┘                      │
-│      │                                                              │
-│      ▼                                                              │
-│   ┌─────────────────────────────────────────┐                      │
-│   │ Tool: suggest_metrics                   │  ◄── Add safety/     │
-│   │   • privacy_sensitive=True              │      privacy metrics │
-│   │   • safety_critical=True                │                      │
+│   │ Tool: recommend_metrics                 │  ◄── Intelligent     │
+│   │   • Analyzes description semantically   │      selection       │
+│   │   • Returns prioritized metrics         │                      │
+│   │   • Provides explanations               │                      │
 │   └─────────────────────────────────────────┘                      │
 │      │                                                              │
 │      ▼                                                              │
@@ -212,13 +236,15 @@ The AI agent has access to these tools via `@ai_function` decorator:
 │      │                                                              │
 │      ▼                                                              │
 │   ┌─────────────────────────────────────────┐                      │
-│   │ Tool: build_prompt                      │  ◄── Generate v2.0   │
+│   │ Tool: build_prompt (MANDATORY)          │  ◄── Generate v2.1   │
 │   │   • All parameters from above           │      prompt          │
 │   │   • Returns: Complete evaluation prompt │                      │
+│   │   • Includes actual ISO timestamp       │                      │
 │   └─────────────────────────────────────────┘                      │
 │      │                                                              │
 │      ▼                                                              │
-│   Output: Complete v2.0 Evaluation Prompt                          │
+│   Output: Complete v2.1 Evaluation Prompt                          │
+│      • "# 🤖 AI Agent Evaluation Prompt" header                    │
 │      • Hard FAIL gates                                              │
 │      • Primary metrics with weights                                 │
 │      • Second-order quality signals                                 │
@@ -229,9 +255,49 @@ The AI agent has access to these tools via `@ai_function` decorator:
 
 ---
 
-## v2.0 Prompt Templates
+## Prompt Version Differences
 
-Both modes generate prompts using the v2.0 template format.
+### Template Mode (v2.0)
+```markdown
+# Evaluation Prompt: [Feature Name]
+**Version:** 2.0 (Auto-Reply Contract)
+**Target Language:** en
+**Locale:** English (United States)
+**Privacy Framework:** CCPA
+**Generated:** 2026-01-25T12:00:00Z
+
+## EVALUATOR ROLE
+You are an expert evaluator...
+```
+
+### AI Agent Mode (v2.1)
+```markdown
+# 🤖 AI Agent Evaluation Prompt: [Feature Name]
+**Version:** 2.1 (AI Agent Generated)
+**Generation Mode:** AI Agent with Intelligent Analysis
+**Target Language:** en
+**Locale:** English (United States)
+**Privacy Framework:** CCPA
+**Generated:** 2026-01-25T12:00:00Z
+
+## 1. EVALUATOR ROLE
+You are an **AI-powered expert evaluator**...
+```
+
+**Key Differences:**
+| Aspect | Template v2.0 | AI Agent v2.1 |
+|--------|---------------|---------------|
+| Header | `# Evaluation Prompt:` | `# 🤖 AI Agent Evaluation Prompt:` |
+| Version | 2.0 | 2.1 |
+| Sections | `## SECTION NAME` | `## 1. SECTION NAME` (numbered) |
+| Role | "expert evaluator" | "**AI-powered expert evaluator**" |
+| Timestamp | ISO format | ISO format (enforced by tool) |
+
+---
+
+## v2.0/v2.1 Prompt Templates
+
+Both modes generate prompts with the canonical contract structure.
 
 ### Template Structure
 
@@ -275,6 +341,7 @@ Each generated prompt includes:
 |-----------|----------|----------|
 | Template Mode | `generate()` | **None** - pure Python |
 | AI Agent Mode | `chat()` | Azure OpenAI via Agent Framework |
+| AI Recommend | `recommend_metrics()` | **None** - rule-based analysis |
 | Simulation | `generate_ai_outputs()` | Azure OpenAI (temperature 0.0) |
 | Evaluation | `run_simulation_evaluation()` | Azure OpenAI (temperature 0.0) |
 
@@ -344,12 +411,37 @@ response = agent.chat(
     "careful about accuracy and patient privacy."
 )
 
-# Returns complete v2.0 evaluation prompt with:
+# Returns complete v2.1 evaluation prompt with:
+# - "# 🤖 AI Agent Evaluation Prompt" header
 # - HALLUCINATION, SAFETY, PRIVACY, FACTUAL gates
 # - Summarization metrics (faithfulness, coverage, etc.)
 # - German locale with GDPR framework
 # - Second-order quality signals
 print(response.evaluation_prompt)
+```
+
+### Intelligent Metric Recommendation
+
+```python
+from src.core.ai_agent import recommend_metrics
+
+# Get intelligent recommendations with explanations
+result = recommend_metrics(
+    feature_name="Medical Summary Generator",
+    feature_description="Summarizes patient records for physician review",
+    category="summarization",
+    input_format="text",
+    output_format="text",
+    check_privacy=True,
+    check_safety=True,
+    locale="de-DE"
+)
+
+print(result["recommendations_markdown"])
+# Output includes prioritized metrics with explanations:
+# 🔴 CRITICAL: privacy - Handles sensitive patient data...
+# 🔴 CRITICAL: safety - Medical context requires...
+# 🟡 IMPORTANT: faithfulness - Must not hallucinate...
 ```
 
 ---
@@ -367,79 +459,20 @@ print(response.evaluation_prompt)
 | **Adaptability** | Fixed templates | Dynamic reasoning |
 | **Natural Language** | Structured input only | Free-form requests |
 
-**Best Practice**: Use Template Mode as the **canonical contract** for auditing and reproducibility. Use AI Agent Mode for **adaptive execution** when features are complex or novel.
+**Best Practice**: Use **⚖️ Both** mode to compare outputs, then choose based on your needs.
 
-### Why v2.0 Prompts?
+### Why v2.0/v2.1 Prompts?
 
-The v2.0 format addresses gaps identified in prompt quality analysis:
+The v2.0+ format addresses gaps identified in prompt quality analysis:
 
-| Issue | v1.0 | v2.0 Solution |
-|-------|------|---------------|
+| Issue | v1.0 | v2.0+ Solution |
+|-------|------|----------------|
 | Missing hard gates | Soft scoring only | Explicit FAIL gates with override |
 | Subtle quality issues | Primary metrics only | Second-order quality signals |
 | Regional compliance | Limited | Privacy frameworks per locale |
 | Reproducibility | Variable | Canonical contract format |
 | Auditability | Minimal | Version, timestamp, evaluation_id |
-
----
-
-## Workflows for Complex Features
-
-**File**: [src/core/workflows.py](../src/core/workflows.py)
-
-For complex multi-step scenarios, use workflows:
-
-```python
-from src.core.workflows import WorkflowRunner
-
-runner = WorkflowRunner()
-
-# Multi-locale feature
-result = runner.run(
-    feature_name="Medical Document Summarizer",
-    feature_description="Summarize medical documents for doctors...",
-    target_locales=["de-DE", "ja-JP", "en-US"],
-    safety_critical=True
-)
-
-# Get v2.0 prompts for each locale
-for locale, prompt in result.prompts.items():
-    print(f"--- {locale} ---")
-    print(prompt[:200] + "...")
-```
-
-### Human-in-the-Loop Workflow
-
-For safety-critical features requiring human approval:
-
-```python
-from src.core.workflows import HumanReviewWorkflow
-
-workflow = HumanReviewWorkflow()
-
-# Start - runs analysis
-state = workflow.start(
-    feature_name="Medical Assistant",
-    feature_description="...",
-    safety_critical=True
-)
-
-# Review analysis
-print(f"Detected category: {state.detected_category}")
-print(f"Privacy sensitive: {state.detected_privacy_sensitive}")
-
-# Human approves or overrides
-state = workflow.approve_analysis(state, approved=True)
-
-# Review RAI compliance
-print(f"RAI issues: {state.rai_issues}")
-
-# Human approves
-state = workflow.approve_rai(state, approved=True)
-
-# Get final results (v2.0 prompts)
-state = workflow.finalize(state)
-```
+| Timestamp placeholders | "[Current Date]" | Actual ISO timestamp (v2.1 enforced) |
 
 ---
 
@@ -447,14 +480,16 @@ state = workflow.finalize(state)
 
 | Scenario | Recommended Mode |
 |----------|------------------|
-| Simple, predefined features | Template Mode (fast, no API calls) |
-| Natural language requests | AI Agent Mode |
+| Compare outputs | ⚖️ Both (side-by-side) |
+| Simple, predefined features | 📋 Template only |
+| Natural language requests | ⚡ Always AI |
 | Multi-locale features | WorkflowRunner |
 | Safety-critical with approval | HumanReviewWorkflow |
 | Interactive exploration | AI Agent Mode `chat()` |
-| Auditable contracts | Template Mode |
-| Novel feature types | AI Agent Mode |
-| Cost-sensitive environments | Template Mode |
+| Auditable contracts | 📋 Template only |
+| Novel feature types | ⚡ Always AI |
+| Cost-sensitive environments | 📋 Template only |
+| Understanding the difference | ⚖️ Both |
 
 ---
 
@@ -484,4 +519,3 @@ Agent Framework components gracefully degrade if not installed - the app falls b
 ---
 
 *Last updated: January 25, 2026*
-
