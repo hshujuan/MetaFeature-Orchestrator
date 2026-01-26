@@ -222,13 +222,136 @@ It's not an "AI agent" in the LangChain/AutoGen sense.
 
 ---
 
-## Future Enhancements
+## Future Enhancements ✅ (Now Implemented!)
 
-Potential improvements to make it more agentic:
+The following enhancements have been implemented using **Microsoft Agent Framework**:
 
-1. **LLM-based metric suggestion** - Use LLM to suggest metrics based on feature description
-2. **Dynamic template selection** - LLM chooses best template for edge cases
-3. **Iterative refinement** - Multi-turn prompt improvement loop
-4. **Tool use** - Call external APIs for domain-specific validation
+### New: MetaFeatureAgent (AI-Powered)
 
-These would move it toward a true autonomous agent architecture.
+**File**: [src/core/ai_agent.py](../src/core/ai_agent.py)
+
+The `MetaFeatureAgent` is a **true AI agent** that uses LLMs to make dynamic decisions:
+
+```python
+from src.core.ai_agent import MetaFeatureAgent
+
+agent = MetaFeatureAgent()
+
+# Natural language request - the agent figures out the rest
+response = agent.chat(
+    "I need an evaluation prompt for a medical document summarizer "
+    "that will be used by doctors in Germany. It needs to be very "
+    "careful about accuracy and patient privacy."
+)
+
+print(response.evaluation_prompt)
+```
+
+### Agent Comparison
+
+| Aspect | FeaturePromptWriterAgent (Legacy) | MetaFeatureAgent (New) |
+|--------|-----------------------------------|------------------------|
+| **Framework** | None - pure Python | Microsoft Agent Framework |
+| **Decision Making** | Deterministic code paths | LLM-driven decisions |
+| **Tool Use** | None | 11 tools available |
+| **Memory** | Stateless | Thread-based conversation |
+| **Natural Language** | Structured input only | Understands free-form requests |
+| **Error Recovery** | None | Can retry with different approaches |
+| **Complex Features** | Limited handling | Dynamic reasoning |
+
+### Available Tools
+
+The AI agent has access to these tools ([agent_tools.py](../src/core/agent_tools.py)):
+
+| Tool | Purpose |
+|------|---------|
+| `lookup_metrics` | Find metrics for a category |
+| `suggest_metrics` | Get recommendations for additional metrics |
+| `search_metric_by_name` | Find metrics by keyword |
+| `get_locale_info` | Get cultural/regulatory info for a locale |
+| `list_supported_locales` | See all supported locales |
+| `search_similar_features` | Find existing similar features in DB |
+| `get_feature_by_id` | Retrieve a specific feature |
+| `build_prompt` | Generate the evaluation prompt |
+| `validate_rai_compliance` | Check if metrics meet RAI requirements |
+| `get_code_metrics` | Get programmatic metrics (ROUGE, BLEU) |
+| `analyze_feature_description` | Extract attributes from natural language |
+
+### Workflows for Complex Features
+
+**File**: [src/core/workflows.py](../src/core/workflows.py)
+
+For complex multi-step scenarios, use workflows:
+
+```python
+from src.core.workflows import WorkflowRunner
+
+runner = WorkflowRunner()
+
+# Multi-locale feature
+result = runner.run(
+    feature_name="Medical Document Summarizer",
+    feature_description="Summarize medical documents for doctors...",
+    target_locales=["de-DE", "ja-JP", "en-US"],
+    safety_critical=True
+)
+
+# Get prompts for each locale
+for locale, prompt in result.prompts.items():
+    print(f"--- {locale} ---")
+    print(prompt[:200] + "...")
+```
+
+### Human-in-the-Loop Workflow
+
+For safety-critical features requiring human approval:
+
+```python
+from src.core.workflows import HumanReviewWorkflow
+
+workflow = HumanReviewWorkflow()
+
+# Start - runs analysis
+state = workflow.start(
+    feature_name="Medical Assistant",
+    feature_description="...",
+    safety_critical=True
+)
+
+# Review analysis
+print(f"Detected category: {state.detected_category}")
+print(f"Privacy sensitive: {state.detected_privacy_sensitive}")
+
+# Human approves or overrides
+state = workflow.approve_analysis(state, approved=True)
+
+# Review RAI compliance
+print(f"RAI issues: {state.rai_issues}")
+
+# Human approves
+state = workflow.approve_rai(state, approved=True)
+
+# Get final results
+state = workflow.finalize(state)
+```
+
+### When to Use Which?
+
+| Scenario | Recommended |
+|----------|-------------|
+| Simple, predefined features | `FeaturePromptWriterAgent` (fast, no API calls) |
+| Natural language requests | `MetaFeatureAgent` |
+| Multi-locale features | `WorkflowRunner` |
+| Safety-critical with approval | `HumanReviewWorkflow` |
+| Interactive exploration | `MetaFeatureAgent.chat()` |
+
+### Installation
+
+The AI agent requires Microsoft Agent Framework:
+
+```bash
+pip install agent-framework --pre
+```
+
+The legacy agent works without it. Agent Framework components are optional and gracefully degrade if not installed.
+
