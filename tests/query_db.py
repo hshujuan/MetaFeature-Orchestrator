@@ -2,7 +2,7 @@
 import sqlite3
 from pathlib import Path
 
-db_path = Path(__file__).parent / "src" / "data" / "metafeature.db"
+db_path = Path(__file__).parent.parent / "src" / "data" / "metafeature.db"
 c = sqlite3.connect(str(db_path))
 c.row_factory = sqlite3.Row
 
