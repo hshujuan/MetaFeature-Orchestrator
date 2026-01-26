@@ -24,6 +24,27 @@ from .llm_client import (
 from .database import FeatureStore, PromptTemplateStore, RunStore
 from .app import create_app, main as run_app
 
+# New AI Agent components (Microsoft Agent Framework)
+# These are optional - only imported if agent-framework is installed
+try:
+    from .ai_agent import MetaFeatureAgent, generate_with_agent, AgentResponse
+    from .workflows import (
+        WorkflowRunner, HumanReviewWorkflow, FeatureWorkflowState,
+        workflow_state_to_prompt_output
+    )
+    from .agent_tools import ALL_TOOLS
+    _AGENT_FRAMEWORK_AVAILABLE = True
+except ImportError:
+    _AGENT_FRAMEWORK_AVAILABLE = False
+    MetaFeatureAgent = None
+    generate_with_agent = None
+    AgentResponse = None
+    WorkflowRunner = None
+    HumanReviewWorkflow = None
+    FeatureWorkflowState = None
+    workflow_state_to_prompt_output = None
+    ALL_TOOLS = None
+
 
 __all__ = [
     # Schemas
@@ -39,8 +60,13 @@ __all__ = [
     "EVALUATION_AGENT_SYSTEM_PROMPT", "FEATURE_EVALUATION_REQUEST_TEMPLATE",
     "template_auto_reply", "template_summarization", "template_translation",
     "template_generic", "get_template_for_category", "build_evaluation_prompt",
-    # Agent
+    # Legacy Agent (deterministic)
     "FeaturePromptWriterAgent",
+    # AI Agent (Microsoft Agent Framework) - optional
+    "MetaFeatureAgent", "generate_with_agent", "AgentResponse",
+    "WorkflowRunner", "HumanReviewWorkflow", "FeatureWorkflowState",
+    "workflow_state_to_prompt_output", "ALL_TOOLS",
+    "_AGENT_FRAMEWORK_AVAILABLE",
     # LLM Client
     "LLMClient", "get_llm_client", "get_openai_client", "get_deployment_name", "chat_completion",
     # Database
