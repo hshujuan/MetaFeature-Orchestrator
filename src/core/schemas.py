@@ -228,3 +228,9 @@ def spec_to_feature_metadata(spec: FeatureSpec) -> FeatureMetadata:
         output_description=spec.output_format,
         supported_locales=spec.locales_supported,
         supported_languages=spec.languages_supported,  # Derived property
+        quality_metrics=[QualityMetric(name=m, description="") for m in spec.success_metrics],
+        responsible_ai=ResponsibleAIConstraints(
+            no_pii_leakage=spec.privacy_sensitive,
+            safety_critical=spec.safety_critical,
+        ),
+    )

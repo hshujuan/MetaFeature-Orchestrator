@@ -13,12 +13,13 @@ MetaFeature-Orchestrator is an intelligent evaluation prompt generator that crea
 - **Agent-based**: Intelligent prompt synthesis, not hard-coded templates
 - **RAI by Design**: Responsible AI checks built-in (safety, privacy, fairness, transparency)
 - **Human-reviewable**: All outputs are transparent and auditable
-- **Extensible**: i18n support for 8 languages, customizable metrics
+- **Locale-aware**: BCP 47 locale support (20+ locales) with culture-specific tone, formality, and privacy frameworks
 
 ## Features
 
 - 📊 **20+ Built-in Metrics**: faithfulness, coverage, relevance, tone, fluency, brevity, safety, privacy, groundedness, format_compliance, accuracy, coherence, creativity, prompt_adherence, visual_accuracy, image_quality, anatomical_correctness, and more
-- 🌍 **Multi-language Support**: English, Chinese (Simplified), Japanese, Spanish, French, German, Portuguese, Korean
+- 🌍 **20+ Locales (BCP 47)**: en-US, en-GB, en-AU, zh-CN, zh-TW, zh-HK, ja-JP, ko-KR, es-ES, es-MX, de-DE, fr-FR, pt-BR, and more
+- 🎭 **Culture-Aware Evaluation**: Locale-specific tone (casual vs formal), directness, and regional privacy frameworks (GDPR, CCPA, PIPL, LGPD)
 - 🛡️ **RAI Checks**: Safety, privacy, fairness, transparency constraints with automatic injection
 - ⚡ **Quick Start Templates**: Pre-configured features for Summarization, Auto Reply, Translation, Classification, Image Understanding, Image Generation, Image Editing, and Image Safety
 - 💾 **SQLite Persistence**: Store features, templates, and evaluation runs
@@ -148,9 +149,10 @@ metadata = FeatureMetadata(
 
 # Generate evaluation prompt
 agent = FeaturePromptWriterAgent()
-result = agent.generate(metadata, language="en")
+result = agent.generate(metadata, locale="en-US")  # BCP 47 locale code
 
 print(result.evaluation_prompt)
+print(f"Privacy framework: {result.privacy_framework}")  # e.g., CCPA, GDPR
 ```
 
 ## Available Metrics

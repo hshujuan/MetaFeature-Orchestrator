@@ -42,7 +42,7 @@
 │ Agent-based     │ Intelligent prompt synthesis, not hard-coded templates│
 │ RAI by Design   │ Safety, privacy, fairness built into every evaluation│
 │ Human-reviewable│ All outputs are transparent and auditable            │
-│ Extensible      │ i18n for 8 languages, customizable metrics           │
+│ Locale-aware    │ 20+ BCP 47 locales with culture-specific evaluation  │
 └─────────────────┴───────────────────────────────────────────────────────┘
 ```
 
@@ -149,7 +149,7 @@ The agent is the **central orchestrator** for generating evaluation prompts. It 
 flowchart LR
     subgraph Input
         FM[FeatureMetadata<br/>or FeatureSpec]
-        LANG[Language Code]
+        LOCALE[Locale Code<br/>BCP 47 e.g. en-US]
     end
     
     subgraph Agent["FeaturePromptWriterAgent"]
@@ -629,7 +629,7 @@ flowchart TB
     subgraph Input["Inputs"]
         FN[feature_name]
         CAT[category]
-        LANG[language]
+        LOCALE[locale<br/>BCP 47 e.g. en-US]
         METRICS[metrics_used]
         DEFS[metric_definitions]
     end
@@ -680,24 +680,83 @@ flowchart TB
     FORMAT --> GEN
 ```
 
-#### 3.8.2 The `build_evaluation_prompt()` Function
+#### 3.8.2 Locale System (BCP 47)
 
-**Entry Point** (from [prompt_templates.py#L976-L984](../src/core/prompt_templates.py)):
+The system uses **BCP 47 locale codes** instead of simple language codes to enable **culture-aware evaluation**. A locale encodes both language AND region, which affects tone, formality, and regulatory compliance.
+
+**Why Locale > Language?**
+- Same language, different cultures: `en-US` (casual, direct) vs `en-GB` (formal, indirect)
+- Regional privacy frameworks: `de-DE` → GDPR, `en-US` → CCPA, `zh-CN` → PIPL, `pt-BR` → LGPD
+- Different formality norms: `es-ES` (formal) vs `es-MX` (more casual)
+
+**Supported Locales** (from [prompt_templates.py](../src/core/prompt_templates.py)):
+
+| Locale | Region | Formality | Privacy Framework |
+|--------|--------|-----------|-------------------|
+| `en-US` | United States | Casual | CCPA |
+| `en-GB` | United Kingdom | Formal | GDPR |
+| `en-AU` | Australia | Casual | Australian Privacy Act |
+| `zh-CN` | China (Mainland) | Formal | PIPL |
+| `zh-TW` | Taiwan | Formal | PDPA |
+| `zh-HK` | Hong Kong | Neutral | PDPO |
+| `ja-JP` | Japan | Very Formal | APPI |
+| `ko-KR` | South Korea | Formal | PIPA |
+| `es-ES` | Spain | Formal | GDPR |
+| `es-MX` | Mexico | Casual | LFPDPPP |
+| `de-DE` | Germany | Formal | GDPR |
+| `fr-FR` | France | Formal | GDPR |
+| `pt-BR` | Brazil | Casual | LGPD |
+
+**Locale Helper Functions**:
+
+| Function | Purpose |
+|----------|---------|
+| `get_language(locale)` | Extract language code (e.g., `"en-US"` → `"en"`) |
+| `get_region(locale)` | Extract region code (e.g., `"en-US"` → `"US"`) |
+| `normalize_locale(locale)` | Normalize to BCP 47 format |
+| `get_cultural_context(locale)` | Get formality, directness settings |
+| `get_tone_guidance(locale)` | Get culture-specific tone instructions |
+| `get_privacy_framework(locale)` | Get regional privacy regulation |
+| `generate_locale_rai_section(locale)` | Generate locale-specific RAI constraints |
+
+**Cultural Context Structure**:
+```python
+LOCALE_CULTURAL_CONTEXT = {
+    "en-US": {
+        "formality": "casual",
+        "directness": "direct",
+        "privacy_framework": "CCPA",
+        "tone_notes": "Direct feedback is acceptable..."
+    },
+    "ja-JP": {
+        "formality": "very_formal",
+        "directness": "indirect",
+        "privacy_framework": "APPI",
+        "tone_notes": "Use respectful language, avoid direct criticism..."
+    },
+    # ...
+}
+```
+
+#### 3.8.3 The `build_evaluation_prompt()` Function
+
+**Entry Point** (from [prompt_templates.py](../src/core/prompt_templates.py)):
 
 ```python
 def build_evaluation_prompt(
     feature_name: str,
     category: str,
-    language: str,
+    locale: str,              # BCP 47 locale code (e.g., "en-US", "zh-CN")
     metrics_used: List[str],
     metric_defs: Dict[str, Dict[str, Any]]
 ) -> str:
     """Build an evaluation prompt using the appropriate template"""
     template_fn = get_template_for_category(category)
-    return template_fn(feature_name, language, metrics_used, metric_defs)
+    # Template functions now receive locale and generate culture-aware prompts
+    return template_fn(feature_name, locale, metrics_used, metric_defs)
 ```
 
-**Template Selection** (from [prompt_templates.py#L968-L974](../src/core/prompt_templates.py)):
+**Template Selection** (from [prompt_templates.py](../src/core/prompt_templates.py)):
 
 | Category | Template Function | Specialized For |
 |----------|-------------------|-----------------|
@@ -706,16 +765,21 @@ def build_evaluation_prompt(
 | `translation` | `template_translation()` | Meaning preservation, fluency checks |
 | *anything else* | `template_generic()` | Flexible evaluation structure |
 
-#### 3.8.3 Template Structure (Example: Summarization)
+#### 3.8.4 Template Structure (Example: Summarization)
 
 Each category-specific template generates a **complete evaluation prompt** with these sections:
 
 ```markdown
 # Evaluation Prompt: {feature_name}
-**Target Language:** {language}
+**Target Locale:** {locale}
+**Language:** {language}
+**Privacy Framework:** {privacy_framework}
 
 ## Role
 {Localized role description for the evaluator LLM}
+
+## Cultural Context
+{Locale-specific tone and formality guidance}
 
 ## Metrics to Evaluate
 {Dynamically formatted metrics block with weights and RAI tags}
@@ -728,17 +792,18 @@ Each category-specific template generates a **complete evaluation prompt** with 
 - Is it a reasonable inference? ⚠
 - Is it not supported by the source? ✗ (FLAG AS HALLUCINATION)
 
-## Responsible AI Checks
+## Responsible AI Checks (Locale-Specific)
 - [ ] No sensitive information exposed
+- [ ] Compliant with {privacy_framework} regulations
 - [ ] Factually grounded in source only
 - [ ] No editorialization or bias introduced
-- [ ] Appropriate for intended audience
+- [ ] Appropriate tone for {locale} audience
 
 ## Output Format
 {JSON schema for structured evaluation results}
 ```
 
-**Source**: [prompt_templates.py#L760-L820](../src/core/prompt_templates.py) (summarization template)
+**Source**: [prompt_templates.py](../src/core/prompt_templates.py) (summarization template)
 
 #### 3.8.4 Bilingual Prompt Generation
 

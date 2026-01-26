@@ -345,6 +345,22 @@ def get_locale_choices() -> List[str]:
     return list(SUPPORTED_LOCALES.keys())
 
 
+def get_locale_info_text(locale: str) -> str:
+    """Generate informational text about the selected locale"""
+    locale = normalize_locale(locale or "en-US")
+    ctx = get_cultural_context(locale)
+    framework = get_privacy_framework(locale)
+    tone = get_tone_guidance(locale)
+    
+    # Extract key info
+    formality = ctx.get("formality", "neutral")
+    directness = ctx.get("directness", "direct")
+    
+    return f"""**{locale}**: {formality.capitalize()} tone, {directness} feedback, {framework} privacy framework
+    
+*Tone guidance: {tone[:100]}...*"""
+
+
 def get_locale_display_choices() -> List[tuple]:
     """Get locales with display names for dropdown"""
     return [(f"{code} - {name}", code) for code, name in SUPPORTED_LOCALES.items()]
@@ -934,13 +950,13 @@ def run_simulation(
     ai_output: str,
     selected_metrics: List[str],
     use_good_output: bool,
-    language: str,
+    locale: str,
     generated_prompt: str = ""
 ) -> tuple:
     """Run evaluation on the provided AI output using the generated prompt from the Generate tab"""
     logger.info(f"Running evaluation for scenario: {scenario_choice}")
     logger.info(f"Selected metrics: {selected_metrics}")
-    logger.info(f"Evaluating {'GOOD' if use_good_output else 'BAD'} output, Language: {language}")
+    logger.info(f"Evaluating {'GOOD' if use_good_output else 'BAD'} output, Locale: {locale}")
     logger.info(f"Using generated prompt: {bool(generated_prompt)}")
     
     if not scenario_choice:
@@ -1583,11 +1599,11 @@ def create_app() -> gr.Blocks:
             outputs=[selected_metrics]
         )
         
-        # Location change updates language
-        location.change(
-            fn=get_language_for_location,
-            inputs=[location],
-            outputs=[language]
+        # Locale change updates info display
+        locale_dropdown.change(
+            fn=get_locale_info_text,
+            inputs=[locale_dropdown],
+            outputs=[locale_info]
         )
         
         # Generate button - also update the simulation tab's generated prompt display and enable simulation
@@ -1597,7 +1613,7 @@ def create_app() -> gr.Blocks:
             typical_input_val, expected_output_val,
             selected_metrics_val, additional_context_val,
             check_safety_val, check_privacy_val, check_fairness_val, check_transparency_val,
-            rai_notes_val, language_val
+            rai_notes_val, locale_val
         ):
             """Generate prompt and return extra copy for simulation tab, also update visibility"""
             result = generate_prompt(
@@ -1606,7 +1622,7 @@ def create_app() -> gr.Blocks:
                 typical_input_val, expected_output_val,
                 selected_metrics_val, additional_context_val,
                 check_safety_val, check_privacy_val, check_fairness_val, check_transparency_val,
-                rai_notes_val, language_val
+                rai_notes_val, locale_val
             )
             # result is (evaluation_prompt, metric_defs, suggested_str, metrics_used_str, json_spec, code_metrics_sample, status_message)
             evaluation_prompt = result[0]
@@ -1758,16 +1774,16 @@ def create_app() -> gr.Blocks:
             bad_output: str,
             selected_metrics: List[str],
             use_good: bool,
-            language: str,
+            locale: str,
             generated_prompt: str
         ) -> tuple:
             """Run evaluation on the selected output (good or bad) using the generated prompt"""
             output_to_evaluate = good_output if use_good else bad_output
-            return run_simulation(scenario_choice, input_text, output_to_evaluate, selected_metrics, use_good, language, generated_prompt)
+            return run_simulation(scenario_choice, input_text, output_to_evaluate, selected_metrics, use_good, locale, generated_prompt)
         
         sim_run_btn.click(
             fn=run_evaluation_on_selected,
-            inputs=[sim_scenario, sim_input, sim_good_output, sim_bad_output, sim_metrics, sim_use_good, sim_language, sim_generated_prompt_display],
+            inputs=[sim_scenario, sim_input, sim_good_output, sim_bad_output, sim_metrics, sim_use_good, sim_locale, sim_generated_prompt_display],
             outputs=[sim_status, sim_prompt_output, sim_llm_output, sim_code_output]
         )
     
