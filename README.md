@@ -346,6 +346,22 @@ The AI Agent has access to 9 intelligent tools:
 | pt-BR | Portuguese (Brazil) | LGPD |
 | ... | ... | ... |
 
+### 📋 Privacy Framework Reference
+
+The system automatically applies the appropriate privacy framework based on target locale:
+
+| Framework | Full Name | Region | Key Requirements |
+|-----------|-----------|--------|------------------|
+| **GDPR** | General Data Protection Regulation | 🇪🇺 European Union | Consent required, right to erasure, data portability, 72-hour breach notification |
+| **CCPA** | California Consumer Privacy Act | 🇺🇸 California, USA | Right to know, delete, opt-out of sale; applies to businesses serving CA residents |
+| **PIPL** | Personal Information Protection Law | 🇨🇳 China | Strict consent requirements, data localization, cross-border transfer restrictions |
+| **LGPD** | Lei Geral de Proteção de Dados | 🇧🇷 Brazil | Consent-based, applies to any processing of Brazilian residents' data |
+| **UK GDPR** | UK General Data Protection Regulation | 🇬🇧 United Kingdom | Post-Brexit GDPR equivalent with UK-specific provisions |
+| **APPI** | Act on Protection of Personal Information | 🇯🇵 Japan | Business operator obligations, cross-border transfer rules |
+| **PIPA** | Personal Information Protection Act | 🇰🇷 South Korea | One of the strictest; explicit consent, data breach notification |
+
+When generating evaluation prompts for features that handle personal data, the system includes the relevant privacy framework to ensure evaluation criteria account for regional compliance requirements.
+
 ## Dependencies
 
 ### Core
