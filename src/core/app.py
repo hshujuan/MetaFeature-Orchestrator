@@ -694,6 +694,7 @@ def generate_prompt(
             ai_agent = MetaFeatureAgent()
             
             # Build a detailed request for the AI agent
+            # NOTE: Human-selected metrics are MANDATORY. AI can only ADD metrics, not remove.
             ai_request = f"""Generate a comprehensive evaluation prompt for this feature:
 
 **Feature Name:** {feature_name.strip()}
@@ -707,7 +708,7 @@ def generate_prompt(
 **Example Input:** {typical_input_example[:500] if typical_input_example else 'Not provided'}
 **Expected Output:** {expected_output_example[:500] if expected_output_example else 'Not provided'}
 
-**Selected Metrics:** {', '.join(selected_metrics)}
+**Human-Verified Metrics (MANDATORY - DO NOT REMOVE):** {', '.join(selected_metrics)}
 **Additional Context:** {additional_context if additional_context else 'None'}
 
 **RAI Requirements:**
@@ -717,11 +718,19 @@ def generate_prompt(
 - Transparency: {check_transparency}
 - Additional notes: {rai_additional_notes if rai_additional_notes else 'None'}
 
+**METRIC POLICY: ADDITIVE ONLY**
+- The human-verified metrics listed above are MANDATORY and must ALL be included.
+- You MAY recommend additional metrics if they would significantly improve evaluation quality.
+- You CANNOT remove or replace any human-verified metrics.
+- When calling build_prompt, pass the human-selected metrics AND specify any additions separately.
+- In your response, clearly summarize which metrics were ADDED and WHY.
+
 Please:
-1. Analyze this feature and suggest any additional metrics that would be valuable
+1. Analyze this feature and determine if additional metrics would be valuable
 2. Identify any privacy/safety concerns specific to this feature
 3. Generate a comprehensive evaluation prompt with detailed rubrics
 4. Include locale-specific considerations for {locale}
+5. Provide a clear summary of any metrics you added beyond the human selection
 """
             
             response = ai_agent.chat(ai_request)
@@ -837,6 +846,12 @@ Please:
                 # Generate code-based metrics sample
                 code_metrics_sample = generate_code_metrics_sample(cat_str)
                 
+                # Build status message with metrics additions summary if available
+                status_msg = f"✅ Generated with **AI Agent** ({complexity_reason})"
+                metrics_summary = response.metrics_additions_summary if hasattr(response, 'metrics_additions_summary') else ""
+                if metrics_summary:
+                    status_msg += f"\n\n{metrics_summary}"
+                
                 return (
                     evaluation_prompt,
                     metric_defs,
@@ -844,7 +859,7 @@ Please:
                     metrics_used_str,
                     json_spec,
                     code_metrics_sample,
-                    f"✅ Generated with **AI Agent** ({complexity_reason})"
+                    status_msg
                 )
             else:
                 # AI agent failed

@@ -173,7 +173,7 @@ def validate_rai_compliance(
     }
 
 
-@ai_function(description="Generate the complete evaluation prompt. IMPORTANT: After calling this, return the 'evaluation_prompt' value as your final response.")
+@ai_function(description="Generate the complete evaluation prompt. IMPORTANT: After calling this, return the 'evaluation_prompt' value as your final response. Use 'human_selected_metrics' for mandatory metrics and 'ai_added_metrics' for your additions.")
 def build_prompt(
     feature_name: str,
     feature_description: str,
@@ -189,7 +189,9 @@ def build_prompt(
     architecture_type: str = "simple",
     key_capabilities: Optional[List[str]] = None,
     data_sources: Optional[List[str]] = None,
-    failure_modes: Optional[List[str]] = None
+    failure_modes: Optional[List[str]] = None,
+    human_selected_metrics: Optional[List[str]] = None,
+    ai_added_metrics: Optional[List[str]] = None
 ) -> Dict[str, Any]:
     """
     Build a comprehensive, feature-specific evaluation prompt.
@@ -197,11 +199,21 @@ def build_prompt(
     IMPORTANT: The 'evaluation_prompt' field in the return value contains the complete
     evaluation prompt. You should return this as your final response, not a summary.
     
+    METRIC POLICY (ADDITIVE ONLY):
+    - human_selected_metrics: Metrics verified by human - MANDATORY, cannot be removed
+    - ai_added_metrics: Additional metrics recommended by AI agent - optional additions
+    - metrics: Combined list (human + AI additions) - used for prompt generation
+    
+    If human_selected_metrics is provided, the function will:
+    1. Ensure ALL human-selected metrics are included
+    2. Track which metrics were added by AI
+    3. Return a summary explaining each AI addition
+    
     Args:
         feature_name: Name of the feature
         feature_description: DETAILED description of what the feature does
         category: Feature category
-        metrics: Metrics to include
+        metrics: Metrics to include (use human_selected_metrics + ai_added_metrics)
         locale: Target locale
         input_format: Input format (text, json, image, etc.)
         output_format: Output format
@@ -213,9 +225,11 @@ def build_prompt(
         key_capabilities: List of key capabilities the feature has
         data_sources: List of data sources the feature uses
         failure_modes: Known failure modes to watch for
+        human_selected_metrics: MANDATORY metrics selected by human (cannot be removed)
+        ai_added_metrics: Additional metrics added by AI agent (optional)
     
     Returns:
-        Dict with 'evaluation_prompt' (the complete prompt to return) and metadata
+        Dict with 'evaluation_prompt', 'metrics_additions_summary', and metadata
     """
     from .metrics_registry import get_metric
     from .prompt_templates import (
@@ -223,6 +237,62 @@ def build_prompt(
         get_privacy_framework, SUPPORTED_LOCALES
     )
     from datetime import datetime, timezone
+    
+    # ═══════════════════════════════════════════════════════════════════
+    # ADDITIVE METRIC POLICY ENFORCEMENT
+    # ═══════════════════════════════════════════════════════════════════
+    
+    # Track additions for summary
+    metrics_additions_summary = []
+    final_metrics = list(metrics) if metrics else []
+    
+    # If human_selected_metrics provided, enforce they are ALL included
+    if human_selected_metrics:
+        # Ensure all human-selected metrics are in final list
+        for hm in human_selected_metrics:
+            if hm not in final_metrics:
+                final_metrics.append(hm)
+        
+        # Identify which metrics were added by AI (not in human selection)
+        human_set = set(human_selected_metrics)
+        ai_additions = [m for m in final_metrics if m not in human_set]
+        
+        # Use ai_added_metrics if explicitly provided, otherwise infer from difference
+        if ai_added_metrics:
+            ai_additions = list(ai_added_metrics)
+            # Add these to final_metrics if not already there
+            for am in ai_added_metrics:
+                if am not in final_metrics:
+                    final_metrics.append(am)
+        
+        # Build the additions summary with explanations
+        if ai_additions:
+            metrics_additions_summary.append("## 📊 AI-Added Metrics Summary")
+            metrics_additions_summary.append("")
+            metrics_additions_summary.append(f"**Human-Verified Metrics ({len(human_selected_metrics)}):** {', '.join(human_selected_metrics)}")
+            metrics_additions_summary.append(f"**AI-Added Metrics ({len(ai_additions)}):** {', '.join(ai_additions)}")
+            metrics_additions_summary.append("")
+            metrics_additions_summary.append("### Why These Metrics Were Added:")
+            metrics_additions_summary.append("")
+            
+            # Get explanations from recommend_metrics for added metrics
+            addition_explanations = _get_metric_addition_explanations(
+                ai_additions, feature_description, category, architecture_type
+            )
+            for metric_id, explanation in addition_explanations.items():
+                metrics_additions_summary.append(f"- **{metric_id}**: {explanation}")
+            
+            metrics_additions_summary.append("")
+            metrics_additions_summary.append("*Note: Human-verified metrics cannot be removed by AI. These additions enhance coverage.*")
+        else:
+            metrics_additions_summary.append("## 📊 Metrics Summary")
+            metrics_additions_summary.append("")
+            metrics_additions_summary.append(f"**Using Human-Verified Metrics Only ({len(human_selected_metrics)}):** {', '.join(human_selected_metrics)}")
+            metrics_additions_summary.append("")
+            metrics_additions_summary.append("*No additional metrics were recommended by AI for this feature.*")
+        
+        # Use final_metrics for the rest of the function
+        metrics = final_metrics
     
     # Get metric definitions
     metric_defs = {}
@@ -604,9 +674,16 @@ Provide your evaluation in this exact JSON format:
     
     # Store result in global for MetaFeatureAgent to capture
     global _LAST_BUILD_PROMPT_RESULT
+    
+    # Build the additions summary string
+    additions_summary_str = "\n".join(metrics_additions_summary) if metrics_additions_summary else ""
+    
     result = {
         "evaluation_prompt": prompt,
         "metrics_used": metrics,
+        "human_selected_metrics": human_selected_metrics or [],
+        "ai_added_metrics": ai_added_metrics or [],
+        "metrics_additions_summary": additions_summary_str,
         "locale": locale,
         "privacy_framework": privacy_framework,
         "architecture_type": architecture_type,
@@ -615,6 +692,135 @@ Provide your evaluation in this exact JSON format:
     _LAST_BUILD_PROMPT_RESULT = result
     
     return result
+
+
+def _get_metric_addition_explanations(
+    added_metrics: List[str],
+    feature_description: str,
+    category: str,
+    architecture_type: str
+) -> Dict[str, str]:
+    """
+    Generate explanations for why each AI-added metric was recommended.
+    
+    Args:
+        added_metrics: List of metric IDs that were added by AI
+        feature_description: Feature description for context
+        category: Feature category
+        architecture_type: Detected architecture type
+        
+    Returns:
+        Dict mapping metric_id -> explanation string
+    """
+    desc_lower = feature_description.lower()
+    explanations = {}
+    
+    # Category-based explanations
+    category_metric_reasons = {
+        "summarization": {
+            "faithfulness": "Summarization requires verifying no information is fabricated or misrepresented from the source.",
+            "coverage": "Ensures all key points from the source document are captured in the summary.",
+            "groundedness": "Every claim in the summary must be traceable to the original content.",
+            "brevity": "Summaries should be concise - a verbose summary defeats its purpose.",
+        },
+        "auto_reply": {
+            "relevance": "Email/chat replies must directly address the user's question or concern.",
+            "tone": "Professional communication requires appropriate tone matching the context.",
+            "faithfulness": "Replies must not make commitments or statements not backed by policy/facts.",
+            "brevity": "Concise replies are more likely to be read and acted upon.",
+        },
+        "translation": {
+            "faithfulness": "Translations must preserve the original meaning without adding or removing content.",
+            "fluency": "Target language output must read naturally to native speakers.",
+            "cultural_sensitivity": "Translations must respect cultural norms of the target audience.",
+        },
+        "classification": {
+            "relevance": "Classification must align with the actual content being classified.",
+            "groundedness": "Classification decisions must be based on evidence in the input.",
+        },
+        "extraction": {
+            "faithfulness": "Extracted information must match exactly what appears in the source.",
+            "coverage": "All relevant information meeting the extraction criteria should be captured.",
+            "groundedness": "Every extracted item must be directly present in the source document.",
+        },
+        "content_generation": {
+            "relevance": "Generated content must align with the user's request and intent.",
+            "coherence": "Generated text must flow logically and maintain consistency.",
+            "creativity": "Creative tasks benefit from novel, engaging content.",
+        },
+        "personal_assistant": {
+            "relevance": "Assistant responses must address the user's actual needs.",
+            "personalization_accuracy": "Responses should reflect the user's preferences and context.",
+            "reasoning_quality": "Decision recommendations need sound logical reasoning.",
+        }
+    }
+    
+    # Architecture-based explanations
+    architecture_metric_reasons = {
+        "pipeline": {
+            "stage_handoff_quality": "Multi-stage pipelines need verification that information isn't lost between stages.",
+            "error_propagation_resistance": "Pipeline architectures must handle stage failures gracefully.",
+            "end_to_end_coherence": "Final output must still match original intent despite multiple transformations.",
+        },
+        "rag": {
+            "retrieval_relevance": "RAG systems must retrieve documents actually helpful for the query.",
+            "retrieval_attribution": "Proper citation of sources is essential for RAG trustworthiness.",
+            "groundedness": "Responses must be grounded in retrieved documents, not hallucinated.",
+            "no_knowledge_leakage": "RAG systems should not expose internal retrieval mechanics.",
+        },
+        "agentic": {
+            "tool_selection_accuracy": "Agents must select the right tool for each task.",
+            "action_safety": "Agent actions must not cause harm or unauthorized access.",
+            "reasoning_transparency": "Agent decision-making should be explainable.",
+            "graceful_failure": "Agents must handle tool failures without catastrophic results.",
+        },
+        "multimodal": {
+            "cross_modal_alignment": "Content must be consistent across different modalities.",
+            "modality_fidelity": "Each modality output must be high quality independently.",
+            "information_preservation": "Information must survive conversion between modalities.",
+        }
+    }
+    
+    # Generic metric explanations (fallback)
+    generic_explanations = {
+        "safety": "Safety is mandatory for all GenAI features to prevent harmful outputs.",
+        "privacy": "Feature may handle sensitive data requiring privacy protection.",
+        "faithfulness": "Ensures outputs don't contain hallucinated or fabricated information.",
+        "relevance": "Outputs must directly address the user's query or task.",
+        "groundedness": "All claims must be verifiable from the input/context provided.",
+        "coherence": "Output must be logically consistent and well-structured.",
+        "fluency": "Output should read naturally in the target language.",
+        "tone": "Communication style must match the expected context.",
+        "brevity": "Concise outputs are more effective and user-friendly.",
+        "coverage": "All important aspects of the input should be addressed.",
+        "creativity": "Task benefits from novel, engaging, or original content.",
+        "cultural_sensitivity": "Output must respect cultural norms of the target audience.",
+    }
+    
+    # Build explanations for each added metric
+    for metric_id in added_metrics:
+        explanation = None
+        
+        # First check architecture-specific reasons
+        if architecture_type in architecture_metric_reasons:
+            if metric_id in architecture_metric_reasons[architecture_type]:
+                explanation = architecture_metric_reasons[architecture_type][metric_id]
+        
+        # Then check category-specific reasons
+        if not explanation and category in category_metric_reasons:
+            if metric_id in category_metric_reasons[category]:
+                explanation = category_metric_reasons[category][metric_id]
+        
+        # Fall back to generic explanations
+        if not explanation:
+            explanation = generic_explanations.get(
+                metric_id, 
+                f"Added to provide comprehensive evaluation coverage for {category} features."
+            )
+        
+        explanations[metric_id] = explanation
+    
+    return explanations
 
 
 def _get_custom_metric_definition(metric_name: str) -> str:
@@ -1733,6 +1939,9 @@ class AgentResponse:
     category: Optional[str] = None
     locale: Optional[str] = None
     metrics_used: List[str] = field(default_factory=list)
+    human_selected_metrics: List[str] = field(default_factory=list)
+    ai_added_metrics: List[str] = field(default_factory=list)
+    metrics_additions_summary: str = ""
     rai_checks: List[str] = field(default_factory=list)
     code_metrics_sample: Optional[str] = None
 
@@ -1840,6 +2049,9 @@ class MetaFeatureAgent:
             if _LAST_BUILD_PROMPT_RESULT and "evaluation_prompt" in _LAST_BUILD_PROMPT_RESULT:
                 evaluation_prompt = _LAST_BUILD_PROMPT_RESULT["evaluation_prompt"]
                 self._last_result["metrics_used"] = _LAST_BUILD_PROMPT_RESULT.get("metrics_used", [])
+                self._last_result["human_selected_metrics"] = _LAST_BUILD_PROMPT_RESULT.get("human_selected_metrics", [])
+                self._last_result["ai_added_metrics"] = _LAST_BUILD_PROMPT_RESULT.get("ai_added_metrics", [])
+                self._last_result["metrics_additions_summary"] = _LAST_BUILD_PROMPT_RESULT.get("metrics_additions_summary", "")
                 logger.info("Using captured evaluation_prompt from build_prompt tool (%d chars)", 
                            len(evaluation_prompt))
             
@@ -1910,6 +2122,9 @@ class MetaFeatureAgent:
                 message=response_text,
                 evaluation_prompt=evaluation_prompt,
                 metrics_used=self._last_result.get("metrics_used", []),
+                human_selected_metrics=self._last_result.get("human_selected_metrics", []),
+                ai_added_metrics=self._last_result.get("ai_added_metrics", []),
+                metrics_additions_summary=self._last_result.get("metrics_additions_summary", ""),
                 rai_checks=self._last_result.get("rai_checks", [])
             )
             
