@@ -83,6 +83,36 @@ template_store = PromptTemplateStore()
 run_store = RunStore()
 
 
+# --- Download Helper Function ---
+import tempfile
+import os
+
+def create_downloadable_prompt(prompt_text: str, filename_prefix: str = "evaluation_prompt") -> Optional[str]:
+    """
+    Create a temporary file with the prompt text for download.
+    
+    Args:
+        prompt_text: The prompt content to save
+        filename_prefix: Prefix for the filename
+        
+    Returns:
+        Path to the temporary file, or None if prompt is empty
+    """
+    if not prompt_text or not prompt_text.strip():
+        return None
+    
+    # Create a temporary file
+    temp_dir = tempfile.gettempdir()
+    timestamp = __import__('datetime').datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"{filename_prefix}_{timestamp}.md"
+    filepath = os.path.join(temp_dir, filename)
+    
+    with open(filepath, 'w', encoding='utf-8') as f:
+        f.write(prompt_text)
+    
+    return filepath
+
+
 # --- Predefined Feature Templates (from app2.py) ---
 GROUPED_FEATURES: Dict[str, Dict[str, dict]] = {
     "Summarization": {
@@ -1982,6 +2012,8 @@ def create_app() -> gr.Blocks:
                                     label="Template-Generated Prompt",
                                     lines=18
                                 )
+                                template_download_btn = gr.Button("⬇️ Download Template Prompt", size="sm")
+                                template_download_file = gr.File(label="Download", visible=False)
                                 with gr.Accordion("📄 Feature Specification (Template)", open=False):
                                     template_json = gr.Code(
                                         label="Feature Spec JSON",
@@ -1995,6 +2027,8 @@ def create_app() -> gr.Blocks:
                                     label="AI Agent-Generated Prompt",
                                     lines=18
                                 )
+                                agent_download_btn = gr.Button("⬇️ Download AI Agent Prompt", size="sm")
+                                agent_download_file = gr.File(label="Download", visible=False)
                                 with gr.Accordion("📄 Feature Specification (AI Agent)", open=False):
                                     agent_json = gr.Code(
                                         label="Feature Spec JSON",
@@ -2009,6 +2043,8 @@ def create_app() -> gr.Blocks:
                                     label="Generated Evaluation Prompt",
                                     lines=18
                                 )
+                                single_download_btn = gr.Button("⬇️ Download Prompt", size="sm")
+                                single_download_file = gr.File(label="Download", visible=False)
                                 
                                 with gr.Accordion("📊 Metrics Details", open=False):
                                     metric_defs_output = gr.Markdown(label="Metric Definitions Used")
@@ -2444,6 +2480,36 @@ def create_app() -> gr.Blocks:
                 comparison_row, single_row,
                 sim_generated_prompt_display, sim_category_notice, sim_prompt_notice, sim_content
             ]
+        )
+        
+        # --- Download Button Event Handlers ---
+        
+        def download_prompt(prompt_text: str, prefix: str) -> tuple:
+            """Create downloadable file and show it"""
+            filepath = create_downloadable_prompt(prompt_text, prefix)
+            if filepath:
+                return gr.update(value=filepath, visible=True)
+            return gr.update(visible=False)
+        
+        # Single mode download
+        single_download_btn.click(
+            fn=lambda p: download_prompt(p, "evaluation_prompt"),
+            inputs=[output_prompt],
+            outputs=[single_download_file]
+        )
+        
+        # Template mode download (comparison view)
+        template_download_btn.click(
+            fn=lambda p: download_prompt(p, "template_prompt"),
+            inputs=[template_output_prompt],
+            outputs=[template_download_file]
+        )
+        
+        # AI Agent mode download (comparison view)
+        agent_download_btn.click(
+            fn=lambda p: download_prompt(p, "ai_agent_prompt"),
+            inputs=[agent_output_prompt],
+            outputs=[agent_download_file]
         )
         
         # --- Simulation Tab Event Handlers ---
