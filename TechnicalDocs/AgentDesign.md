@@ -211,6 +211,10 @@ The AI agent has access to these tools via `@ai_function` decorator:
 | `suggest_metrics` | Get recommendations for additional metrics | Suggested metrics list |
 | `recommend_metrics` | **Intelligent** metric selection with architecture detection | Prioritized metrics with rationale + architecture-specific metrics |
 | `get_locale_info` | Get cultural/regulatory info for a locale | Cultural context, tone guidance, privacy framework |
+| `validate_rai_compliance` | Check if metrics meet RAI requirements | Compliance status, issues, recommendations |
+| `build_prompt` | Generate the v2.2 evaluation prompt with additive metric policy | Complete evaluation prompt + metrics_additions_summary |
+| `get_code_metrics` | Get programmatic metrics sample | Code sample for ROUGE, BLEU, etc. |
+| `analyze_feature_description` | Extract attributes from natural language | Category, sensitivity flags, confidence |
 
 #### 📌 `suggest_metrics` vs `recommend_metrics` Clarification
 
@@ -225,10 +229,6 @@ These two tools serve different purposes and should be used in different scenari
 | **Explanations** | Single generic reason for all | Per-metric explanation of relevance |
 | **Best For** | Quick suggestions when category is known | Comprehensive metric planning for new features |
 | **LLM Required** | No (rule-based) | No (rule-based analysis) |
-| `validate_rai_compliance` | Check if metrics meet RAI requirements | Compliance status, issues, recommendations |
-| `build_prompt` | Generate the v2.2 evaluation prompt with additive metric policy | Complete evaluation prompt + metrics_additions_summary |
-| `get_code_metrics` | Get programmatic metrics sample | Code sample for ROUGE, BLEU, etc. |
-| `analyze_feature_description` | Extract attributes from natural language | Category, sensitivity flags, confidence |
 
 ### Agent Workflow
 
