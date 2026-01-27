@@ -2636,10 +2636,10 @@ def main():
     """Launch the application"""
     logger.info("Starting MetaFeature Orchestrator...")
     app = create_app()
-    logger.info("App created, launching on http://127.0.0.1:7860")
+    logger.info("App created, launching on http://127.0.0.1:7861")
     app.launch(
         server_name="127.0.0.1",
-        server_port=7860,
+        server_port=7861,
         share=False
     )
 
