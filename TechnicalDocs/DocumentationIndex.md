@@ -1,7 +1,7 @@
 # Documentation Index
 
-> **Version**: 2.1  
-> **Last Updated**: January 25, 2026
+> **Version**: 2.2  
+> **Last Updated**: January 27, 2026
 
 This document provides a reference to all technical documentation in this codebase. Use this index to find relevant documentation without loading unnecessary context.
 
@@ -17,8 +17,36 @@ This document provides a reference to all technical documentation in this codeba
 
 | Document | Description | Project/Scope |
 |----------|-------------|---------------|
-| [Architecture Overview](ArchitectureOverview.md) | **Comprehensive** architecture documentation covering: (1) Entry points & bootstrapping, (2) Dual-mode agent system (Template + AI Agent), (3) Schema layer with dual Pydantic/dataclass pattern, (4) Metrics registry with 20+ metrics & i18n, (4.1) Code-based metrics (ROUGE, BLEU, BERTScore, etc.), (5) LLM client with singleton pattern, (5.1) Image generator with DALL-E 3, (6) Database layer with ER diagram, (7) Web UI with AI Agent toggle, (8) v2.0 prompt templates with hard FAIL gates. Includes mermaid diagrams and code references. | Global Concept |
-| [Agent Design](AgentDesign.md) | **Deep dive** into the agent system: (1) Template Mode (`FeaturePromptWriterAgent`) - deterministic pipeline, (2) AI Agent Mode (`MetaFeatureAgent` v2.1) - Microsoft Agent Framework, (3) 9 available tools, (4) RAI constraint injection rules, (5) v2.0/v2.1 prompt templates with hard gates and second-order signals, (6) Usage examples and comparison, (7) When to use which mode. | Agent Component |
+| [Architecture Overview](ArchitectureOverview.md) | **Comprehensive** architecture documentation covering: (1) Entry points & bootstrapping, (2) Dual-mode agent system (Template + AI Agent), (3) Schema layer with dual Pydantic/dataclass pattern, (4) Metrics registry with 20+ metrics & i18n, (4.1) Code-based metrics (ROUGE, BLEU, BERTScore, etc.), (5) LLM client with singleton pattern, (5.1) Image generator with DALL-E 3, (6) Database layer with ER diagram, (7) Web UI with AI Agent toggle, (8) v2.2 prompt templates with hard FAIL gates and additive metric policy. Includes mermaid diagrams and code references. | Global Concept |
+| [Agent Design](AgentDesign.md) | **Deep dive** into the agent system: (1) Template Mode (`FeaturePromptWriterAgent`) - deterministic pipeline, (2) AI Agent Mode (`MetaFeatureAgent` v2.2) - Microsoft Agent Framework with architecture detection, (3) 8 available tools with additive metric policy, (4) RAI constraint injection rules, (5) v2.2 prompt templates with hard gates, feature-specific rubrics, and metrics additions summary, (6) Usage examples and comparison, (7) When to use which mode. | Agent Component |
+
+## What's New in v2.2
+
+### Architecture Detection
+- **Automatic Identification**: Detects Pipeline, RAG, Agentic, and Multimodal systems
+- **Architecture-Specific Metrics**: Adds specialized metrics per architecture type
+- **Failure Mode Analysis**: Architecture-specific edge cases included in prompts
+
+### Additive Metric Policy
+- **Human Authority**: Human-verified metrics from Quality Metrics tab are MANDATORY
+- **AI Additions Only**: AI Agent can ADD metrics but cannot remove human selections
+- **Metrics Summary**: Returns `metrics_additions_summary` explaining what was added and why
+
+```markdown
+## 📊 AI-Added Metrics Summary
+
+**Human-Verified Metrics (2):** safety, relevance
+**AI-Added Metrics (2):** faithfulness, coverage
+
+### Why These Metrics Were Added:
+- **faithfulness**: Summarization requires verifying no information is fabricated...
+- **coverage**: Ensures all key points from the source document are captured...
+```
+
+### Feature-Specific Rubrics
+- **18,000+ char prompts**: Comprehensive evaluation prompts (vs ~2,000 in v2.1)
+- **Tailored 5-point rubrics**: Each metric gets feature-specific scoring criteria
+- **Global Capture**: Ensures full prompts are returned (not truncated by LLM)
 
 ## What's New in v2.1
 
@@ -29,9 +57,9 @@ This document provides a reference to all technical documentation in this codeba
 
 ### AI Agent v2.1
 - **Microsoft Agent Framework**: Built on official framework with `ChatAgent` and `@ai_function`
-- **9 Intelligent Tools**: `lookup_metrics`, `suggest_metrics`, `recommend_metrics`, `get_locale_info`, `validate_rai_compliance`, `build_prompt`, `get_code_metrics`, `analyze_feature_description`
+- **8 Intelligent Tools**: `lookup_metrics`, `suggest_metrics`, `recommend_metrics`, `get_locale_info`, `validate_rai_compliance`, `build_prompt`, `get_code_metrics`, `analyze_feature_description`
 - **Mandatory Tool Usage**: System prompt enforces `build_prompt` tool for consistent timestamps
-- **Distinct Output Format**: `# 🤖 AI Agent Evaluation Prompt` header with version 2.1
+- **Distinct Output Format**: `# 🤖 AI Agent Evaluation Prompt` header with version 2.2
 
 ### Intelligent Metric Recommendations
 - **`recommend_metrics()` function**: Analyzes feature descriptions semantically
@@ -57,7 +85,8 @@ See [ArchitectureOverview.md](ArchitectureOverview.md) for:
 |-----------|------|----------------------|
 | Template Mode | [agent.py](../src/core/agent.py) | `FeaturePromptWriterAgent`, `generate()` |
 | AI Agent Mode | [ai_agent.py](../src/core/ai_agent.py) | `MetaFeatureAgent`, `METAFEATURE_AGENT_SYSTEM_PROMPT` |
-| Agent Tools | [ai_agent.py](../src/core/ai_agent.py) | 9 `@ai_function` decorated tools |
+| Agent Tools | [ai_agent.py](../src/core/ai_agent.py) | 8 `@ai_function` decorated tools |
+| Additive Metrics | [ai_agent.py](../src/core/ai_agent.py) | `build_prompt()` with `human_selected_metrics`, `_get_metric_addition_explanations()` |
 | Prompt Templates | [prompt_templates.py](../src/core/prompt_templates.py) | `template_*`, `build_evaluation_prompt()` |
 | Metrics | [metrics_registry.py](../src/core/metrics_registry.py) | `METRICS_REGISTRY`, `MetricDefinition` |
 | Web UI | [app.py](../src/core/app.py) | `create_app()`, `generate_and_sync_to_simulation_streaming()` |

@@ -18,6 +18,7 @@ MetaFeature-Orchestrator is an intelligent evaluation prompt generator that crea
 - 🔧 **8 AI Tools**: Streamlined toolset with enhanced `build_prompt` and `recommend_metrics`
 - 🎯 **Complex System Metrics**: New metrics for multi-model pipelines (`stage_handoff_quality`, `retrieval_relevance`, `tool_selection_accuracy`, `cross_modal_alignment`)
 - 📊 **18,000+ char prompts**: Comprehensive evaluation prompts with full rubrics (vs ~2,000 in v2.1)
+- ✅ **Additive Metric Policy**: Human-verified metrics are mandatory; AI can only ADD metrics, not remove them, with clear summaries of additions
 
 ### What's in v2.1
 
@@ -283,7 +284,7 @@ The AI Agent has access to 8 intelligent tools:
 | `recommend_metrics` | **Intelligent** metric recommendation with architecture detection (Pipeline/RAG/Agentic/Multimodal) |
 | `get_locale_info` | Get cultural, regulatory, and formatting info for a locale |
 | `validate_rai_compliance` | Check if metrics meet RAI requirements |
-| `build_prompt` | Generate comprehensive evaluation prompt with feature-specific rubrics (18,000+ chars) |
+| `build_prompt` | Generate comprehensive evaluation prompt (18,000+ chars) with additive metric policy |
 | `get_code_metrics` | Get programmatic metric code samples |
 | `analyze_feature_description` | Extract attributes from natural language descriptions |
 

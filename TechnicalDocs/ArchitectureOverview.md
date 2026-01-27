@@ -14,6 +14,36 @@
 - **Complex System Metrics**: New metrics for multi-model systems (see below)
 - **Global Prompt Capture**: Ensures full 18,000+ char prompts are returned (not truncated by LLM)
 - **Code-Based Metrics in Side-by-Side Mode**: Now properly displayed in comparison view
+- **Additive Metric Policy**: Human-verified metrics are mandatory; AI can only ADD metrics, not remove them
+
+### Additive Metric Policy (v2.2)
+
+When using AI Agent mode, human-verified metrics from the Quality Metrics tab are **mandatory** and cannot be removed by the AI Agent. The AI Agent can only ADD additional metrics it deems valuable.
+
+| Scenario | Behavior |
+|----------|----------|
+| Human selects `[safety, relevance]` | AI Agent MUST include both |
+| AI recommends `[faithfulness, coverage]` | Added to human selection |
+| Final metrics | `[safety, relevance, faithfulness, coverage]` |
+
+The system returns a **metrics_additions_summary** explaining:
+- Which metrics were human-verified (mandatory)
+- Which metrics were AI-added
+- Why each AI addition was recommended
+
+```markdown
+## 📊 AI-Added Metrics Summary
+
+**Human-Verified Metrics (2):** safety, relevance
+**AI-Added Metrics (2):** faithfulness, coverage
+
+### Why These Metrics Were Added:
+
+- **faithfulness**: Summarization requires verifying no information is fabricated...
+- **coverage**: Ensures all key points from the source document are captured...
+
+*Note: Human-verified metrics cannot be removed by AI. These additions enhance coverage.*
+```
 
 ### Architecture-Specific Metrics (v2.2)
 
@@ -263,7 +293,7 @@ flowchart LR
 | `recommend_metrics` | **Intelligent** metric recommendation with architecture detection (Pipeline/RAG/Agentic/Multimodal) |
 | `get_locale_info` | Get cultural/regulatory info for a locale |
 | `validate_rai_compliance` | Check if metrics meet RAI requirements |
-| `build_prompt` | Generate comprehensive evaluation prompt with feature-specific rubrics (~18,000 chars) |
+| `build_prompt` | Generate comprehensive evaluation prompt (~18,000 chars) with additive metric policy support |
 | `get_code_metrics` | Get programmatic metric code samples |
 | `analyze_feature_description` | Extract attributes from natural language descriptions |
 
@@ -288,11 +318,19 @@ _LAST_BUILD_PROMPT_RESULT: Optional[Dict[str, Any]] = None
 
 # In build_prompt():
 global _LAST_BUILD_PROMPT_RESULT
-_LAST_BUILD_PROMPT_RESULT = {"evaluation_prompt": prompt, ...}
+_LAST_BUILD_PROMPT_RESULT = {
+    "evaluation_prompt": prompt,
+    "metrics_used": metrics,
+    "human_selected_metrics": human_selected_metrics or [],
+    "ai_added_metrics": ai_added_metrics or [],
+    "metrics_additions_summary": additions_summary_str,
+    ...
+}
 
 # In MetaFeatureAgent.chat_async():
 if _LAST_BUILD_PROMPT_RESULT:
     evaluation_prompt = _LAST_BUILD_PROMPT_RESULT["evaluation_prompt"]
+    metrics_additions_summary = _LAST_BUILD_PROMPT_RESULT.get("metrics_additions_summary", "")
 ```
 
 This ensures the full 18,000+ character prompt is returned even if GPT-4 summarizes its response.
