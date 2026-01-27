@@ -1020,7 +1020,7 @@ def generate_both_prompts_streaming(
     """
     Generator that yields Template output immediately, then AI Agent output.
     
-    Yields tuples of (template_prompt, template_json, agent_prompt, agent_json, status)
+    Yields tuples of (template_prompt, template_json, agent_prompt, agent_json, code_metrics, status)
     """
     # Generate Template output FIRST (fast)
     template_result = generate_prompt(
@@ -1034,6 +1034,7 @@ def generate_both_prompts_streaming(
     
     template_prompt = template_result[0]
     template_json = template_result[4]
+    code_metrics = template_result[5]  # Code-based metrics sample
     template_status = template_result[6]
     
     # Yield Template result immediately with loading placeholder for AI
@@ -1042,6 +1043,7 @@ def generate_both_prompts_streaming(
         template_json,
         "⏳ **Generating AI Agent prompt...**\n\nPlease wait while the AI Agent analyzes your feature and generates an optimized evaluation prompt.",
         "{}",
+        code_metrics,  # Include code metrics
         f"""### ⚖️ Side-by-Side Comparison Mode
 
 **Left (Template):** {template_status}
@@ -1069,6 +1071,7 @@ def generate_both_prompts_streaming(
         template_json,
         agent_prompt,
         agent_json,
+        code_metrics,  # Include code metrics
         f"""### ⚖️ Side-by-Side Comparison Mode
 
 **Left (Template):** {template_status}
@@ -2269,7 +2272,8 @@ def create_app() -> gr.Blocks:
                     template_json_spec = both_result[1]
                     agent_prompt = both_result[2]
                     agent_json_spec = both_result[3]
-                    combined_status = both_result[4]
+                    code_metrics = both_result[4]  # Code-based metrics sample
+                    combined_status = both_result[5]
                     
                     # For simulation, use the template prompt
                     sim_prompt = template_prompt if template_prompt else agent_prompt
@@ -2281,7 +2285,7 @@ def create_app() -> gr.Blocks:
                             "",                         # suggested_metrics_output
                             "",                         # used_metrics_output
                             "",                         # output_json (single mode - hidden)
-                            "",                         # code_metrics_output
+                            code_metrics,               # code_metrics_output - NOW POPULATED
                             combined_status,            # status_message
                             template_prompt,            # template_output_prompt
                             template_json_spec,         # template_json
@@ -2301,7 +2305,7 @@ def create_app() -> gr.Blocks:
                             "",                         # suggested_metrics_output
                             "",                         # used_metrics_output
                             "",                         # output_json
-                            "",                         # code_metrics_output
+                            code_metrics,               # code_metrics_output - NOW POPULATED
                             combined_status,            # status_message
                             template_prompt,            # template_output_prompt
                             template_json_spec,         # template_json
@@ -2321,7 +2325,7 @@ def create_app() -> gr.Blocks:
                             "",                         # suggested_metrics_output
                             "",                         # used_metrics_output
                             "",                         # output_json
-                            "",                         # code_metrics_output
+                            code_metrics or "",         # code_metrics_output - NOW POPULATED
                             combined_status,            # status_message
                             template_prompt or "",      # template_output_prompt
                             template_json_spec or "",   # template_json
