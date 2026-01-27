@@ -1,20 +1,30 @@
 # MetaFeature-Orchestrator: Architecture Overview
 
-> **Version**: 2.1  
-> **Last Updated**: January 25, 2026  
+> **Version**: 2.2  
+> **Last Updated**: January 26, 2026  
 > **Document Type**: High-Level Architecture
 
 ---
 
-## What's New in v2.1
+## What's New in v2.2
 
-- **Side-by-Side Comparison Mode**: Compare Template vs AI Agent outputs with progressive loading
-- **Progressive Streaming**: Template output shows immediately while AI Agent generates
-- **AI Agent v2.1**: Enhanced system prompt with mandatory tool usage for consistent timestamps
-- **9 AI Tools**: Added `recommend_metrics` for intelligent metric selection with explanations
-- **4 Generation Modes**: Auto, Always AI, Template only, Both (comparison)
+- **Architecture Detection**: Automatic identification of Pipeline, RAG, Agentic, and Multimodal systems
+- **Feature-Specific Rubrics**: Tailored 5-point scoring criteria for each metric and feature
+- **Failure Mode Analysis**: Architecture-specific edge cases and failure patterns
+- **Complex System Metrics**: New metrics for multi-model systems (see below)
+- **Global Prompt Capture**: Ensures full 18,000+ char prompts are returned (not truncated by LLM)
+- **Code-Based Metrics in Side-by-Side Mode**: Now properly displayed in comparison view
 
-### What's in v2.0
+### Architecture-Specific Metrics (v2.2)
+
+| Architecture | New Metrics |
+|--------------|-------------|
+| **Pipeline** | `stage_handoff_quality`, `error_propagation_resistance`, `end_to_end_coherence` |
+| **RAG** | `retrieval_relevance`, `retrieval_attribution`, `no_knowledge_leakage` |
+| **Agentic** | `tool_selection_accuracy`, `action_safety`, `reasoning_transparency`, `graceful_failure` |
+| **Multimodal** | `cross_modal_alignment`, `modality_fidelity`, `information_preservation` |
+
+### What's in v2.1
 
 - **Dual-Mode Agents**: Template Mode (deterministic) + AI Agent Mode (adaptive)
 - **v2.0 Evaluation Prompts**: Hard FAIL gates, second-order quality signals, canonical contract format
@@ -31,7 +41,7 @@
 | [src/__init__.py](../src/__init__.py) | Package exports - reveals the public API surface |
 | [src/core/__init__.py](../src/core/__init__.py) | Core module structure - shows all exported components and their organization |
 | [src/core/agent.py](../src/core/agent.py) | Template Mode - implements the `FeaturePromptWriterAgent` (deterministic pipeline) |
-| [src/core/ai_agent.py](../src/core/ai_agent.py) | AI Agent Mode - implements `MetaFeatureAgent` v2.1 with Microsoft Agent Framework and 9 tools |
+| [src/core/ai_agent.py](../src/core/ai_agent.py) | AI Agent Mode - implements `MetaFeatureAgent` v2.2 with Microsoft Agent Framework, architecture detection, and 8 tools |
 | [src/core/app.py](../src/core/app.py) | Gradio web UI - defines the user interface with 4 generation modes and streaming comparison |
 | [src/core/schemas.py](../src/core/schemas.py) | Data models - Pydantic/dataclass definitions for all domain objects |
 | [src/core/llm_client.py](../src/core/llm_client.py) | LLM integration - Azure OpenAI/OpenAI client wrapper with singleton pattern |
@@ -86,7 +96,7 @@ flowchart TB
 
     subgraph Core["Core Business Logic"]
         AGENT[FeaturePromptWriterAgent<br/>agent.py - Template Mode]
-        AI_AGENT[MetaFeatureAgent v2.1<br/>ai_agent.py - AI Agent Mode]
+        AI_AGENT[MetaFeatureAgent v2.2<br/>ai_agent.py - AI Agent Mode]
         METRICS_REG[MetricsRegistry<br/>metrics_registry.py]
         PROMPT_TPL[v2.0 PromptTemplates<br/>prompt_templates.py]
     end
@@ -210,9 +220,9 @@ flowchart LR
 | `_apply_rai_constraints()` | Auto-adds safety/privacy metrics | Lines 122-165 |
 | `_metadata_to_spec()` | Converts Pydantic model to dataclass | Lines 167-181 |
 
-#### AI Agent Mode (`MetaFeatureAgent` v2.1)
+#### AI Agent Mode (`MetaFeatureAgent` v2.2)
 
-The adaptive AI agent built on **Microsoft Agent Framework** with 9 tools:
+The adaptive AI agent built on **Microsoft Agent Framework** with 8 tools and architecture detection:
 
 ```mermaid
 flowchart LR
@@ -250,21 +260,51 @@ flowchart LR
 |------|---------|
 | `lookup_metrics` | Find metrics for a category |
 | `suggest_metrics` | Get additional metric suggestions based on context |
-| `recommend_metrics` | **Intelligent** metric recommendation with detailed explanations |
+| `recommend_metrics` | **Intelligent** metric recommendation with architecture detection (Pipeline/RAG/Agentic/Multimodal) |
 | `get_locale_info` | Get cultural/regulatory info for a locale |
 | `validate_rai_compliance` | Check if metrics meet RAI requirements |
-| `build_prompt` | Generate the v2.1 evaluation prompt (mandatory for consistent output) |
+| `build_prompt` | Generate comprehensive evaluation prompt with feature-specific rubrics (~18,000 chars) |
 | `get_code_metrics` | Get programmatic metric code samples |
 | `analyze_feature_description` | Extract attributes from natural language descriptions |
+
+### v2.2 Architecture Detection
+
+The AI Agent automatically detects system architecture from feature descriptions:
+
+| Architecture | Detection Keywords | Additional Metrics |
+|--------------|-------------------|-------------------|
+| **Pipeline** | "pipeline", "chain", "multi-stage", "orchestrat" | `stage_handoff_quality`, `error_propagation_resistance` |
+| **RAG** | "retrieval", "vector", "embedding", "knowledge base" | `retrieval_relevance`, `retrieval_attribution` |
+| **Agentic** | "agent", "tool use", "autonomous", "action" | `tool_selection_accuracy`, `action_safety` |
+| **Multimodal** | "image", "audio", "video", "multimodal" | `cross_modal_alignment`, `modality_fidelity` |
+
+### Global Prompt Capture Mechanism (v2.2)
+
+To prevent LLM truncation of long prompts, v2.2 uses a global capture mechanism:
+
+```python
+# Global storage captures build_prompt result directly
+_LAST_BUILD_PROMPT_RESULT: Optional[Dict[str, Any]] = None
+
+# In build_prompt():
+global _LAST_BUILD_PROMPT_RESULT
+_LAST_BUILD_PROMPT_RESULT = {"evaluation_prompt": prompt, ...}
+
+# In MetaFeatureAgent.chat_async():
+if _LAST_BUILD_PROMPT_RESULT:
+    evaluation_prompt = _LAST_BUILD_PROMPT_RESULT["evaluation_prompt"]
+```
+
+This ensures the full 18,000+ character prompt is returned even if GPT-4 summarizes its response.
 
 > **📌 `suggest_metrics` vs `recommend_metrics`**: These two tools serve different purposes:
 > | Aspect | `suggest_metrics` | `recommend_metrics` |
 > |--------|-------------------|---------------------|
-> | **Analysis** | Simple rule-based | Semantic analysis of feature description |
+> | **Analysis** | Simple rule-based | Semantic analysis + architecture detection |
 > | **Input** | Category + current metrics | Feature name + description + category |
-> | **Output** | Flat list of suggestions | Prioritized tiers (Mandatory → Critical → Important) |
+> | **Output** | Flat list of suggestions | Prioritized tiers + architecture-specific metrics |
 > | **Explanations** | Generic reason | Detailed per-metric explanations |
-> | **Use Case** | Quick suggestions | Comprehensive metric planning |
+> | **Use Case** | Quick suggestions | Comprehensive metric planning for complex systems |
 
 **RAI Auto-Injection Logic** (source: [agent.py#L122-L165](../src/core/agent.py)):
 - **Safety metric**: Always added for all GenAI features

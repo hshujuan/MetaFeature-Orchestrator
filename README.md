@@ -2,7 +2,7 @@
 
 🎯 **Automatically generate high-quality evaluation prompts for GenAI features with metric-first, grounded, RAI-by-design principles.**
 
-[![Version](https://img.shields.io/badge/version-2.1-blue.svg)](https://github.com/yourusername/MetaFeature-Orchestrator)
+[![Version](https://img.shields.io/badge/version-2.2-blue.svg)](https://github.com/yourusername/MetaFeature-Orchestrator)
 [![Python](https://img.shields.io/badge/python-3.11+-green.svg)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
@@ -10,13 +10,20 @@
 
 MetaFeature-Orchestrator is an intelligent evaluation prompt generator that creates comprehensive, structured evaluation prompts for AI features. It uses a **metric-first approach** with built-in **Responsible AI (RAI) checks** and combines LLM-based evaluation with deterministic code-based metrics.
 
-### What's New in v2.1
+### What's New in v2.2
+
+- 🏗️ **Architecture-Aware Evaluation**: Automatic detection and specialized metrics for Pipeline, RAG, Agentic, and Multimodal systems
+- 📋 **Feature-Specific Rubrics**: Generated prompts include tailored 5-point scoring rubrics for each metric
+- ⚠️ **Failure Modes & Edge Cases**: Architecture-specific failure patterns included in evaluation prompts
+- 🔧 **8 AI Tools**: Streamlined toolset with enhanced `build_prompt` and `recommend_metrics`
+- 🎯 **Complex System Metrics**: New metrics for multi-model pipelines (`stage_handoff_quality`, `retrieval_relevance`, `tool_selection_accuracy`, `cross_modal_alignment`)
+- 📊 **18,000+ char prompts**: Comprehensive evaluation prompts with full rubrics (vs ~2,000 in v2.1)
+
+### What's in v2.1
 
 - ⚖️ **Side-by-Side Comparison Mode**: Compare Template vs AI Agent outputs in real-time
 - 🚀 **Progressive Loading**: Template output shows immediately while AI Agent generates
-- 🤖 **AI Agent v2.1**: Enhanced system prompt with mandatory tool usage for consistent timestamps
 - 📊 **Intelligent Metric Recommendations**: `recommend_metrics()` analyzes features and explains why each metric matters
-- 🔧 **9 AI Tools**: `lookup_metrics`, `suggest_metrics`, `recommend_metrics`, `get_locale_info`, `validate_rai_compliance`, `build_prompt`, `get_code_metrics`, `analyze_feature_description`
 - 🌍 **20+ BCP 47 Locales**: Full cultural context, tone guidance, and privacy frameworks
 
 ### Design Principles
@@ -37,7 +44,7 @@ MetaFeature-Orchestrator is an intelligent evaluation prompt generator that crea
 - 🛡️ **Hard FAIL Gates**: Safety, Privacy, Toxicity, Legal constraints that override all other scores
 - 🎯 **Second-Order Signals**: Fluency, linguistic naturalness, localization quality, regional compliance, cultural appropriateness
 - ⚡ **Quick Start Templates**: Pre-configured features for Summarization, Auto Reply, Translation, Classification, Image Generation, and Personal Assistant
-- 🤖 **AI Agent v2.1**: Microsoft Agent Framework with 9 intelligent tools and natural language understanding
+- 🤖 **AI Agent v2.2**: Microsoft Agent Framework with 8 intelligent tools, architecture detection, and feature-specific rubrics
 - ⚖️ **Comparison Mode**: Side-by-side Template vs AI Agent output comparison with progressive loading
 - 💾 **SQLite Persistence**: Store features, templates, and evaluation runs
 - 🎨 **Modern Web UI**: Tabbed Gradio interface with 4 generation modes
@@ -51,7 +58,7 @@ MetaFeature-Orchestrator/
 ├── src/
 │   ├── core/                    # Main application modules
 │   │   ├── agent.py             # FeaturePromptWriterAgent - deterministic pipeline (Template Mode)
-│   │   ├── ai_agent.py          # MetaFeatureAgent v2.1 - AI-powered agent with 9 tools
+│   │   ├── ai_agent.py          # MetaFeatureAgent v2.2 - AI-powered agent with 8 tools + architecture detection
 │   │   ├── app.py               # Gradio web application with 4 generation modes
 │   │   ├── code_metrics.py      # Programmatic metrics (ROUGE, BLEU, BERTScore)
 │   │   ├── database.py          # SQLite persistence
@@ -173,14 +180,15 @@ Generated prompts follow a **canonical contract** format:
 **Generated:** [ISO timestamp]
 ```
 
-**AI Agent Mode (v2.1)**:
+**AI Agent Mode (v2.2)**:
 ```markdown
 # 🤖 AI Agent Evaluation Prompt: [Feature Name]
-**Version:** 2.1 (AI Agent Generated)
+**Version:** 2.2 (AI Agent Generated - Feature-Specific)
 **Generation Mode:** AI Agent with Intelligent Analysis
 **Target Language:** [language]
 **Locale:** [locale name]
 **Privacy Framework:** [GDPR/CCPA/etc.]
+**Architecture Type:** [Simple/Pipeline/RAG/Agentic/Multimodal]
 **Generated:** [ISO timestamp]
 ```
 
@@ -239,13 +247,16 @@ response = agent.chat(
 print(response.evaluation_prompt)
 ```
 
-The AI Agent v2.1 provides:
+The AI Agent v2.2 provides:
+- **Architecture Detection**: Automatically identifies Pipeline, RAG, Agentic, and Multimodal systems
+- **Feature-Specific Rubrics**: Tailored 5-point scoring criteria for each metric
+- **Failure Mode Analysis**: Architecture-specific edge cases and failure patterns
 - Natural language feature understanding
 - Intelligent metric selection with explanations
 - Cultural and regulatory awareness
 - Automatic RAI compliance validation
 - Explicit FAIL gates and second-order quality signals
-- Reproducible outputs through mandatory tool usage
+- Reproducible outputs through global prompt capture mechanism
 
 ### Template Mode vs AI Agent Mode
 
@@ -257,24 +268,33 @@ The AI Agent v2.1 provides:
 | **Adaptability** | Fixed templates | Dynamic reasoning |
 | **Cost** | Free | API costs |
 | **Requirement** | None | Azure OpenAI + Agent Framework |
-| **Version** | v2.0 | v2.1 |
+| **Version** | v2.0 | v2.2 |
 
 **Recommendation**: Use **⚖️ Both** mode first to compare outputs, then choose the best for your use case.
 
-## AI Agent Tools (v2.1)
+## AI Agent Tools (v2.2)
 
-The AI Agent has access to 9 intelligent tools:
+The AI Agent has access to 8 intelligent tools:
 
 | Tool | Description |
 |------|-------------|
 | `lookup_metrics` | Find available metrics for a category |
 | `suggest_metrics` | Get additional metric suggestions based on context |
-| `recommend_metrics` | **Intelligent** metric recommendation with detailed explanations |
+| `recommend_metrics` | **Intelligent** metric recommendation with architecture detection (Pipeline/RAG/Agentic/Multimodal) |
 | `get_locale_info` | Get cultural, regulatory, and formatting info for a locale |
 | `validate_rai_compliance` | Check if metrics meet RAI requirements |
-| `build_prompt` | Generate the complete evaluation prompt (mandatory for consistent output) |
+| `build_prompt` | Generate comprehensive evaluation prompt with feature-specific rubrics (18,000+ chars) |
 | `get_code_metrics` | Get programmatic metric code samples |
 | `analyze_feature_description` | Extract attributes from natural language descriptions |
+
+### Architecture-Specific Metrics (v2.2)
+
+| Architecture | Additional Metrics |
+|--------------|-------------------|
+| **Pipeline** | `stage_handoff_quality`, `error_propagation_resistance`, `end_to_end_coherence` |
+| **RAG** | `retrieval_relevance`, `retrieval_attribution`, `no_knowledge_leakage` |
+| **Agentic** | `tool_selection_accuracy`, `action_safety`, `reasoning_transparency`, `graceful_failure` |
+| **Multimodal** | `cross_modal_alignment`, `modality_fidelity`, `information_preservation` |
 
 > **📌 `suggest_metrics` vs `recommend_metrics`**: These two tools serve different purposes:
 > 
@@ -391,4 +411,4 @@ See [LICENSE](LICENSE) for details.
 
 ---
 
-**Version 2.1** | January 2026 | Built with ❤️ for the GenAI evaluation community
+**Version 2.2** | January 2026 | Built with ❤️ for the GenAI evaluation community

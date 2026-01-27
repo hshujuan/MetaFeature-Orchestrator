@@ -1,14 +1,14 @@
 # Agent Design Documentation
 
-> **Version**: 2.1  
-> **Last Updated**: January 25, 2026
+> **Version**: 2.2  
+> **Last Updated**: January 26, 2026
 
 ## Overview
 
 MetaFeature-Orchestrator provides two agent modes for generating evaluation prompts:
 
 1. **Template Mode** (`FeaturePromptWriterAgent`): Deterministic, template-based prompt generation (v2.0)
-2. **AI Agent Mode** (`MetaFeatureAgent` v2.1): AI-powered agent using Microsoft Agent Framework
+2. **AI Agent Mode** (`MetaFeatureAgent` v2.2): AI-powered agent using Microsoft Agent Framework with architecture detection
 
 Both modes generate production-ready evaluation prompts with hard FAIL gates, second-order quality signals, and structured JSON output.
 
@@ -21,13 +21,16 @@ Both modes generate production-ready evaluation prompts with hard FAIL gates, se
 | **Class** | `FeaturePromptWriterAgent` | `MetaFeatureAgent` |
 | **Framework** | Pure Python | Microsoft Agent Framework |
 | **Planning** | Hard-coded workflow | Dynamic LLM reasoning |
-| **Tool Use** | None | 9 tools via `@ai_function` |
+| **Tool Use** | None | 8 tools via `@ai_function` |
+| **Architecture Detection** | None | Pipeline, RAG, Agentic, Multimodal |
+| **Feature-Specific Rubrics** | Generic templates | Tailored 5-point scoring |
+| **Prompt Size** | ~3,000 chars | ~18,000 chars |
 | **Memory** | Stateless | Thread-based conversation |
 | **Decision Making** | Deterministic code paths | LLM-driven decisions |
 | **Speed** | Instant | Requires API calls |
 | **Cost** | Free | API costs |
 | **Best For** | Simple, well-defined features | Complex, novel features |
-| **Prompt Version** | v2.0 | v2.1 |
+| **Prompt Version** | v2.0 | v2.2 |
 
 **Recommendation**: Use **⚖️ Both** mode to compare outputs side-by-side, then choose the best for your use case.
 
@@ -153,33 +156,35 @@ The agent automatically injects Responsible AI metrics based on feature configur
 
 ---
 
-## AI Agent Mode: `MetaFeatureAgent` v2.1
+## AI Agent Mode: `MetaFeatureAgent` v2.2
 
 ### Overview
 
-The `MetaFeatureAgent` is a **true AI agent** built on Microsoft Agent Framework that uses LLMs to make dynamic decisions about metric selection, RAI compliance, and prompt generation.
+The `MetaFeatureAgent` is a **true AI agent** built on Microsoft Agent Framework that uses LLMs to make dynamic decisions about metric selection, RAI compliance, and prompt generation. **v2.2 adds architecture detection and feature-specific rubrics.**
 
 **File**: [src/core/ai_agent.py](../src/core/ai_agent.py)
 
-### System Prompt (v2.1)
+### System Prompt (v2.2)
 
 ```
-You are MetaFeature Agent v2.1, an expert AI evaluation prompt generator with intelligent metric selection capabilities.
+You are MetaFeature Agent v2.2, an expert AI evaluation prompt generator with advanced capabilities for complex, multi-component AI systems.
 
-Your job is to:
-1. **Intelligently recommend** the best evaluation metrics for a feature
-2. **Explain why** each metric is important for the specific feature
-3. **Generate** a complete, production-ready evaluation prompt using the `build_prompt` tool
+You specialize in:
+1. **Architecture Detection**: Identifying Pipeline, RAG, Agentic, and Multimodal systems
+2. **Intelligent Metric Selection**: Recommending architecture-specific metrics
+3. **Feature-Specific Rubrics**: Generating tailored 5-point scoring criteria
+4. **Failure Mode Analysis**: Identifying edge cases specific to the architecture
 
 ## CRITICAL: Always Use the build_prompt Tool
 
-**NEVER generate evaluation prompts manually.** You MUST call the `build_prompt` tool to generate prompts because:
-- It includes the correct timestamp (not "[Current Date]" placeholder)
-- It applies proper locale-specific formatting
-- It ensures consistent structure and versioning
+**NEVER generate evaluation prompts manually.** You MUST call the `build_prompt` tool because:
+- It generates feature-specific rubrics for each metric
+- It includes architecture-specific evaluation guidance
+- It adds failure modes and edge cases
+- It ensures 18,000+ character comprehensive prompts
 ```
 
-### Available Tools (9 total)
+### Available Tools (8 total)
 
 The AI agent has access to these tools via `@ai_function` decorator:
 
@@ -187,7 +192,7 @@ The AI agent has access to these tools via `@ai_function` decorator:
 |------|---------|---------|
 | `lookup_metrics` | Find metrics for a category | Metric names, definitions, weights |
 | `suggest_metrics` | Get recommendations for additional metrics | Suggested metrics list |
-| `recommend_metrics` | **Intelligent** metric selection with explanations | Prioritized metrics with rationale |
+| `recommend_metrics` | **Intelligent** metric selection with architecture detection | Prioritized metrics with rationale + architecture-specific metrics |
 | `get_locale_info` | Get cultural/regulatory info for a locale | Cultural context, tone guidance, privacy framework |
 
 #### 📌 `suggest_metrics` vs `recommend_metrics` Clarification
@@ -284,28 +289,53 @@ These two tools serve different purposes and should be used in different scenari
 You are an expert evaluator...
 ```
 
-### AI Agent Mode (v2.1)
+### AI Agent Mode (v2.2)
 ```markdown
 # 🤖 AI Agent Evaluation Prompt: [Feature Name]
-**Version:** 2.1 (AI Agent Generated)
+**Version:** 2.2 (AI Agent Generated - Feature-Specific)
 **Generation Mode:** AI Agent with Intelligent Analysis
 **Target Language:** en
 **Locale:** English (United States)
 **Privacy Framework:** CCPA
-**Generated:** 2026-01-25T12:00:00Z
+**Architecture Type:** [Simple/Pipeline/RAG/Agentic/Multimodal]
+**Generated:** 2026-01-26T12:00:00Z
 
-## 1. EVALUATOR ROLE
-You are an **AI-powered expert evaluator**...
+## 1. FEATURE UNDER EVALUATION
+### 📋 Feature Overview
+**Name:** [Feature Name]
+**Category:** [Category]
+**Architecture:** [Architecture Type]
+
+### 📝 Feature Description
+[Detailed description...]
+
+### 🎯 Key Capabilities
+- [Capability 1]
+- [Capability 2]
+
+## 3. EVALUATOR INSTRUCTIONS
+You are an **expert AI evaluator** specialized in assessing **[category]** systems...
+
+## 4. HARD GATES ⛔
+[Architecture-specific hard gates...]
+
+## 5. FAILURE MODES & EDGE CASES
+[Architecture-specific failure patterns...]
+
+## 6. EVALUATION METRICS
+[Feature-specific 5-point rubrics for each metric...]
 ```
 
-**Key Differences:**
-| Aspect | Template v2.0 | AI Agent v2.1 |
+**Key Differences (v2.0 vs v2.2):**
+| Aspect | Template v2.0 | AI Agent v2.2 |
 |--------|---------------|---------------|
 | Header | `# Evaluation Prompt:` | `# 🤖 AI Agent Evaluation Prompt:` |
-| Version | 2.0 | 2.1 |
-| Sections | `## SECTION NAME` | `## 1. SECTION NAME` (numbered) |
-| Role | "expert evaluator" | "**AI-powered expert evaluator**" |
-| Timestamp | ISO format | ISO format (enforced by tool) |
+| Version | 2.0 | 2.2 |
+| Architecture | Not detected | Pipeline/RAG/Agentic/Multimodal |
+| Rubrics | Generic scoring | Feature-specific 5-point scales |
+| Failure Modes | None | Architecture-specific patterns |
+| Prompt Size | ~3,000 chars | ~18,000 chars |
+| Sections | Basic structure | Comprehensive 9-section format |
 
 ---
 
@@ -532,4 +562,4 @@ Agent Framework components gracefully degrade if not installed - the app falls b
 
 ---
 
-*Last updated: January 25, 2026*
+*Last updated: January 26, 2026*

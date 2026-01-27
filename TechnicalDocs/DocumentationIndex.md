@@ -122,13 +122,15 @@ A **dynamic, intelligent** recommendation system that analyzes your feature.
 |--------|-------------|
 | **Method** | Semantic analysis of feature name, description, and context |
 | **Location** | [ai_agent.py](../src/core/ai_agent.py) `recommend_metrics()` function |
-| **Analysis** | Detects privacy sensitivity, safety criticality, locale requirements |
+| **Analysis** | Detects privacy sensitivity, safety criticality, locale requirements, **architecture type** |
+| **Architecture Detection** | Pipeline, RAG, Agentic, Multimodal systems |
 | **Explanations** | Detailed rationale for each recommended metric |
 | **Speed** | ~100ms (local computation, no LLM call) |
 
 **What it analyzes:**
 - Feature description keywords → Detects "medical", "financial", "personal" = privacy-sensitive
 - Safety indicators → "health", "legal", "decision" = safety-critical features
+- **Architecture patterns** → "pipeline", "RAG", "agent", "multimodal" = specialized metrics
 - Output format → JSON/XML = adds `format_compliance`
 - Locale → Non-US locales add `cultural_appropriateness`, `regional_compliance`
 
@@ -172,50 +174,65 @@ A **dynamic, intelligent** recommendation system that analyzes your feature.
 You are an expert evaluator...
 ```
 
-### AI Agent Mode (v2.1)
+### AI Agent Mode (v2.2)
 ```markdown
 # 🤖 AI Agent Evaluation Prompt: [Feature Name]
-**Version:** 2.1 (AI Agent Generated)
+**Version:** 2.2 (AI Agent Generated - Feature-Specific)
 **Generation Mode:** AI Agent with Intelligent Analysis
 **Target Language:** en
 **Locale:** English (United States)
 **Privacy Framework:** CCPA
-**Generated:** 2026-01-25T12:00:00Z
+**Architecture Type:** [Simple/Pipeline/RAG/Agentic/Multimodal]
+**Generated:** 2026-01-26T12:00:00Z
 
-## 1. EVALUATOR ROLE
-You are an **AI-powered expert evaluator**...
+## 1. FEATURE UNDER EVALUATION
+### 📋 Feature Overview
+**Name:** [Feature Name]
+**Category:** [Category]
+**Architecture:** [Architecture Type]
+
+## 3. EVALUATOR INSTRUCTIONS
+## 4. HARD GATES ⛔
+## 5. FAILURE MODES & EDGE CASES
+## 6. EVALUATION METRICS (with feature-specific rubrics)
+## 7. EVALUATION PROTOCOL
+## 8. REQUIRED OUTPUT FORMAT
+## 9. CONTENT TO EVALUATE
 ```
 
-**Key Differences:**
-- AI Agent uses `# 🤖 AI Agent Evaluation Prompt` header
-- AI Agent has numbered sections (`## 1. EVALUATOR ROLE`)
-- AI Agent emphasizes it's "AI-powered"
-- Both include actual ISO timestamps (not placeholders)
+**Key Differences (v2.0 vs v2.2):**
+| Aspect | Template v2.0 | AI Agent v2.2 |
+|--------|---------------|---------------|
+| Header | `# Evaluation Prompt:` | `# 🤖 AI Agent Evaluation Prompt:` |
+| Architecture | Not detected | Pipeline/RAG/Agentic/Multimodal |
+| Rubrics | Generic scoring | Feature-specific 5-point scales |
+| Failure Modes | None | Architecture-specific patterns |
+| Prompt Size | ~3,000 chars | ~18,000 chars |
 
 ---
 
-## AI Agent Tools Reference
+## AI Agent Tools Reference (8 tools)
 
 | Tool | Purpose | Returns |
 |------|---------|---------|
 | `lookup_metrics` | Find metrics for a category | List of metrics with definitions and weights |
 | `suggest_metrics` | Get additional suggestions | Suggested metrics based on context |
-| `recommend_metrics` | **Intelligent analysis** | Prioritized metrics with explanations |
+| `recommend_metrics` | **Intelligent analysis with architecture detection** | Prioritized metrics + architecture-specific metrics |
 | `get_locale_info` | Cultural/regulatory info | Privacy framework, tone guidance, cultural context |
+| `validate_rai_compliance` | Check RAI requirements | Compliance status and issues |
+| `build_prompt` | Generate comprehensive evaluation prompt | Complete prompt with feature-specific rubrics (~18,000 chars) |
+| `get_code_metrics` | Code metric samples | Python code for ROUGE/BLEU/etc. |
+| `analyze_feature_description` | Extract attributes | Detected category, privacy, safety flags |
 
 ### 📌 `suggest_metrics` vs `recommend_metrics`
 
 | Aspect | `suggest_metrics` | `recommend_metrics` |
 |--------|-------------------|---------------------|
-| **Analysis** | Rule-based lookup | Semantic feature analysis |
+| **Analysis** | Rule-based lookup | Semantic feature analysis + architecture detection |
 | **Input** | Category + current metrics | Feature name + description + category |
-| **Output** | Flat list | Prioritized tiers (Mandatory/Critical/Important) |
+| **Output** | Flat list | Prioritized tiers + architecture-specific metrics |
 | **Explanations** | Generic reason | Detailed per-metric rationale |
-| **Use Case** | Quick category-based suggestions | Comprehensive metric planning |
-| `validate_rai_compliance` | Check RAI requirements | Compliance status and issues |
-| `build_prompt` | Generate evaluation prompt | Complete prompt with timestamp |
-| `get_code_metrics` | Code metric samples | Python code for ROUGE/BLEU/etc. |
-| `analyze_feature_description` | Extract attributes | Detected category, privacy, safety flags |
+| **Use Case** | Quick category-based suggestions | Comprehensive metric planning for complex systems |
 
 ---
-*Last updated: January 25, 2026*
+*Last updated: January 26, 2026*
