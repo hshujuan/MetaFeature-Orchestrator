@@ -138,7 +138,7 @@ def chat_completion(
     messages: List[Dict[str, str]],
     model: Optional[str] = None,
     temperature: float = 0.0,
-    max_tokens: int = 4000
+    max_tokens: int = 8000
 ) -> str:
     """Convenience function for chat completion"""
     return LLMClient().chat_completion(
