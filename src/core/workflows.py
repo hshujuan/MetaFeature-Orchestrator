@@ -22,7 +22,8 @@ from agent_framework.workflows import (
     ParallelNode
 )
 
-from .agent_tools import (
+# Import AI Agent tools (these are now defined in ai_agent.py with @ai_function decorators)
+from .ai_agent import (
     analyze_feature_description,
     lookup_metrics,
     validate_rai_compliance,
