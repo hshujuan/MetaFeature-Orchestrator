@@ -61,7 +61,7 @@ class LLMClient:
         messages: List[Dict[str, str]],
         model: Optional[str] = None,
         temperature: float = 0.0,
-        max_tokens: int = 4000,
+        max_tokens: int = 8000,
         **kwargs
     ) -> str:
         """
@@ -114,7 +114,7 @@ class LLMClient:
         return self.chat_completion(
             messages=messages,
             temperature=temperature,
-            max_tokens=4000
+            max_tokens=8000
         )
 
 
